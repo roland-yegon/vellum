@@ -65,10 +65,16 @@ int main(void)
     resize.window.data1 = 1024;
     resize.window.data2 = 768;
 
+    SDL_Event toggle_theme;
+    SDL_zero(toggle_theme);
+    toggle_theme.type = SDL_EVENT_TEXT_INPUT;
+    toggle_theme.text.text = "t";
+
     bool ok = true;
     ok = run_until_quit("escape", &escape, NULL) && ok;
     ok = run_until_quit("close request", &close_request, NULL) && ok;
     ok = run_until_quit("resize then escape", &resize, &escape) && ok;
+    ok = run_until_quit("theme toggle then escape", &toggle_theme, &escape) && ok;
 
     vellum_log_shutdown();
     printf("%s\n", ok ? "app event integration: PASS" : "app event integration: FAIL");

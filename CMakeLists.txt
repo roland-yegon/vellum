@@ -57,10 +57,17 @@ enable_testing()
 add_library(vellum_build_flags INTERFACE)
 target_compile_features(vellum_build_flags INTERFACE c_std_17)
 target_compile_definitions(vellum_build_flags INTERFACE
-    VELLUM_FONT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts")
+    VELLUM_FONT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts"
+    VELLUM_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
 target_compile_options(vellum_build_flags INTERFACE ${VELLUM_WARNINGS} ${VELLUM_SANITIZE_FLAGS})
 target_link_options(vellum_build_flags INTERFACE ${VELLUM_SANITIZE_FLAGS})
 target_link_libraries(vellum_build_flags INTERFACE SDL3::SDL3)
+
+# Vendored yyjson is third-party code: keep Vellum's strict warnings away from it,
+# but keep sanitizer instrumentation so config parsing is checked in debug builds.
+add_library(yyjson_vendored STATIC third_party/yyjson/yyjson.c)
+target_include_directories(yyjson_vendored PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/yyjson)
+target_compile_options(yyjson_vendored PRIVATE ${VELLUM_SANITIZE_FLAGS})
 
 add_library(vellum_core STATIC
     src/core/arena.c
@@ -87,6 +94,15 @@ target_link_libraries(vellum_graphics PUBLIC
     PkgConfig::FREETYPE2
     PkgConfig::HARFBUZZ)
 
+add_library(vellum_config STATIC
+    src/config/config.c
+    src/config/json_util.c
+    src/config/theme.c)
+target_link_libraries(vellum_config PUBLIC
+    vellum_core
+    yyjson_vendored
+    vellum_build_flags)
+
 add_library(vellum_platform STATIC
     src/platform/events.c
     src/platform/paths.c
@@ -98,6 +114,7 @@ add_library(vellum_app STATIC src/app.c)
 target_link_libraries(vellum_app PUBLIC
     vellum_platform
     vellum_graphics
+    vellum_config
     vellum_core
     vellum_build_flags)
 
@@ -116,11 +133,14 @@ add_executable(vellum_unit_tests
     tests/unit/test_events.c
     tests/unit/test_unicode.c
     tests/unit/test_font.c
-    tests/unit/test_shape.c)
+    tests/unit/test_shape.c
+    tests/unit/test_config.c
+    tests/unit/test_theme.c)
 target_include_directories(vellum_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(vellum_unit_tests PRIVATE
     vellum_platform
     vellum_graphics
+    vellum_config
     vellum_text
     vellum_core
     vellum_build_flags)

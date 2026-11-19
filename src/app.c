@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "vellum/config/config.h"
+#include "vellum/config/theme.h"
 #include "vellum/core/log.h"
 #include "vellum/core/trace.h"
 #include "vellum/graphics/draw_list.h"
@@ -23,16 +25,21 @@
 #include "vellum/platform/window.h"
 
 #define ATLAS_PAGE_SIZE 512u
-#define FONT_PIXEL_SIZE 24u
 
 #ifndef VELLUM_FONT_DIR
 #define VELLUM_FONT_DIR "."
+#endif
+
+#ifndef VELLUM_CONFIG_DIR
+#define VELLUM_CONFIG_DIR "."
 #endif
 
 struct VellumApp {
     VellumWindow *window;
     VellumRenderer *renderer;
     VellumDrawList *draw_list;
+    VellumSettings settings;
+    VellumTheme theme;
     VellumFontSystem *fonts;
     VellumTextureHandle atlas_texture;
     const VellumGlyph *sample_glyphs[10u];
@@ -73,6 +80,58 @@ static bool post_startup_message(VellumApp *app, VellumErrorInfo *error)
     return true;
 }
 
+static void load_settings(VellumApp *app)
+{
+    VellumErrorInfo error;
+    vellum_error_init(&error);
+    app->settings = vellum_settings_default();
+
+    char path[512];
+    const int written = snprintf(path, sizeof(path), "%s/settings.json", VELLUM_CONFIG_DIR);
+    const bool path_ok = written >= 0 && (size_t)written < sizeof(path);
+    if (!path_ok || !vellum_settings_load(&app->settings, path, &error)) {
+        VELLUM_LOG_WARN("config", "settings unavailable (%s); using defaults",
+                        path_ok ? vellum_error_message(&error) : "path is too long");
+        return;
+    }
+    VELLUM_LOG_INFO("config", "settings loaded from %s", path);
+}
+
+static bool theme_name_is_safe(const char *name)
+{
+    if (name == NULL || name[0] == '\0') {
+        return false;
+    }
+    for (const char *c = name; *c != '\0'; ++c) {
+        const unsigned char value = (unsigned char)*c;
+        if (!((value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') ||
+              (value >= '0' && value <= '9') || value == '-' || value == '_')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void load_theme(VellumApp *app, const char *name)
+{
+    VellumErrorInfo error;
+    vellum_error_init(&error);
+
+    char path[512];
+    int written = -1;
+    if (theme_name_is_safe(name)) {
+        written = snprintf(path, sizeof(path), "%s/themes/%s.json", VELLUM_CONFIG_DIR, name);
+    }
+    const bool path_ok = written >= 0 && (size_t)written < sizeof(path);
+    if (!path_ok || !vellum_theme_load(&app->theme, path, &error)) {
+        VELLUM_LOG_WARN("config", "theme '%s' unavailable (%s); using built-in fallback", name,
+                        path_ok ? vellum_error_message(&error) : "unsafe theme name");
+        app->theme = strcmp(name, "light") == 0 ? vellum_theme_light() : vellum_theme_dark();
+        return;
+    }
+    VELLUM_LOG_INFO("config", "theme '%s' loaded from %s", vellum_theme_name(&app->theme), path);
+}
+
 static bool add_bundled_font(VellumApp *app, const char *name, VellumErrorInfo *error)
 {
     char path[512];
@@ -101,7 +160,7 @@ static bool prepare_fonts(VellumApp *app, VellumErrorInfo *error)
                                           0x0645u, 0x0631u, 0x062Du, 0x0628u, 0x0627u};
     for (size_t i = 0u; i < sizeof(faces) / sizeof(faces[0]); ++i) {
         app->sample_glyphs[i] = vellum_font_system_glyph_for_char(
-            app->fonts, faces[i], codepoints[i], FONT_PIXEL_SIZE, error);
+            app->fonts, faces[i], codepoints[i], app->settings.font_size, error);
         if (app->sample_glyphs[i] == NULL) {
             return false;
         }
@@ -131,6 +190,8 @@ VellumApp *vellum_app_create(VellumErrorInfo *error)
     app->window = NULL;
     app->renderer = NULL;
     app->draw_list = NULL;
+    app->settings = vellum_settings_default();
+    app->theme = vellum_theme_dark();
     app->fonts = NULL;
     app->atlas_texture = VELLUM_TEXTURE_NONE;
     memset(app->sample_glyphs, 0, sizeof(app->sample_glyphs));
@@ -168,6 +229,8 @@ VellumApp *vellum_app_create(VellumErrorInfo *error)
         vellum_error_set(error, VELLUM_ERR_ALLOC_FAILED, "could not allocate draw list");
         goto fail;
     }
+    load_settings(app);
+    load_theme(app, app->settings.theme);
     if (!prepare_fonts(app, error)) {
         goto fail;
     }
@@ -180,6 +243,8 @@ VellumApp *vellum_app_create(VellumErrorInfo *error)
     app->last_log_tick = SDL_GetTicks();
     log_startup();
     VELLUM_LOG_INFO("app", "renderer: %s", vellum_renderer_name(app->renderer));
+    VELLUM_LOG_INFO("app", "theme: %s, font size: %u", vellum_theme_name(&app->theme),
+                    app->settings.font_size);
     VELLUM_LOG_INFO("app", "atlas texture handle: %u", app->atlas_texture);
     VELLUM_LOG_INFO("app", "window: %dx%d", app->width, app->height);
     return app;
@@ -212,6 +277,14 @@ static void handle_input(VellumApp *app, const VellumInput *input)
         app->dirty = true;
         break;
     case VELLUM_INPUT_TEXT:
+        if (input->data.text.text[0] == 't' || input->data.text.text[0] == 'T') {
+            const char *next = strcmp(app->settings.theme, "light") == 0 ? "dark" : "light";
+            memcpy(app->settings.theme, next, strlen(next) + 1u);
+            load_theme(app, next);
+            app->dirty = true;
+            VELLUM_LOG_INFO("config", "theme switched to %s", vellum_theme_name(&app->theme));
+        }
+        break;
     case VELLUM_INPUT_POINTER_MOTION:
     case VELLUM_INPUT_POINTER_BUTTON:
     case VELLUM_INPUT_WHEEL:
@@ -256,21 +329,22 @@ static bool build_scene(VellumApp *app, VellumErrorInfo *error)
 
     VellumDrawList *list = app->draw_list;
     vellum_draw_list_clear(list);
-    vellum_draw_list_set_clear_color(list, vellum_color(0.04f, 0.05f, 0.07f, 1.0f));
+    vellum_draw_list_set_clear_color(list,
+                                     vellum_theme_color(&app->theme, VELLUM_THEME_BACKGROUND));
     vellum_draw_list_rect(list, 0.0f, 0.0f, 180.0f, (float)app->height,
-                          vellum_color(0.08f, 0.09f, 0.12f, 1.0f));
+                          vellum_theme_color(&app->theme, VELLUM_THEME_SIDEBAR));
     vellum_draw_list_rect(list, 180.0f, 0.0f, (float)(app->width - 180), 24.0f,
-                          vellum_color(0.11f, 0.12f, 0.16f, 1.0f));
+                          vellum_theme_color(&app->theme, VELLUM_THEME_TAB_BAR));
     vellum_draw_list_rect(list, 180.0f, 80.0f, (float)(app->width - 180), 18.0f,
-                          vellum_color(0.10f, 0.12f, 0.18f, 1.0f));
+                          vellum_theme_color(&app->theme, VELLUM_THEME_TAB_BAR));
 
     for (size_t i = 0u; i < sizeof(app->sample_glyphs) / sizeof(app->sample_glyphs[0]); ++i) {
         const VellumGlyph *glyph = app->sample_glyphs[i];
         if (glyph == NULL) {
             continue;
         }
-        const VellumColor tint = i % 3u == 0u ? vellum_color(0.35f, 0.70f, 0.95f, 1.0f)
-                                              : vellum_color(0.85f, 0.87f, 0.92f, 1.0f);
+        const VellumColor tint = i % 3u == 0u ? vellum_theme_color(&app->theme, VELLUM_THEME_ACCENT)
+                                              : vellum_theme_color(&app->theme, VELLUM_THEME_TEXT);
         if (!vellum_draw_list_textured_quad(list, app->atlas_texture,
                                             196.0f + (float)i * 20.0f + glyph->bearing_x,
                                             60.0f - glyph->bearing_y, glyph->width, glyph->height,

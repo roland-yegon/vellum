@@ -65,7 +65,7 @@ Everything below was checked on this machine, not assumed.
 | Component | Version / detail | Notes |
 | --- | --- | --- |
 | Clang | 23.1.5 | Primary compiler; ASan/UBSan verified working |
-| GCC | 16.2.1 | Available; current Makefile uses this |
+| GCC | 16.2.1 | Available; Clang is the primary compiler |
 | CMake | 4.5.0 | Target build system |
 | Ninja | 1.13.2 | Preferred generator |
 | pkg-config | 3.0.11 | Module name is **`sdl3`** (lowercase), not `SDL3` |
@@ -79,6 +79,7 @@ Everything below was checked on this machine, not assumed.
 | FreeType | installed (`freetype2`) | Glyph rasterization |
 | HarfBuzz | 15.1.0 | Text shaping |
 | ICU | 78.3 (`icu-uc`, `icu-i18n`) | Unicode properties, grapheme clusters, bidi |
+| yyjson | 0.13.0, **vendored** in `third_party/yyjson` | JSON config; archive SHA-256 `34e0f6...94a0fae`, MIT; see ADR-001 |
 | Tree-sitter | **not installed** | Must be added later (vendored or packaged) |
 | Vulkan loader | 1.4.363 present | SDL3 GPU "vulkan" backend is available on this host |
 | Session | Wayland (`wayland-1`), `DISPLAY=:1` | Both X11 and Wayland paths available |
@@ -240,8 +241,10 @@ runs in `src/graphics/shape.c` with fallback, `calt`/`liga`, UTF-8 cluster offse
 and a byte-verified cache. The three system libraries and their licences are recorded
 in [ADR-006](architecture/ADR-006-icu-freetype-harfbuzz-text-pipeline.md). The renderer
 owns stable texture handles, batches geometry per texture, and uploads the RGBA atlas
-when the font system reports it dirty. Line layout and the full demo screen are the next
-increments.
+when the font system reports it dirty. Typed settings and semantic light/dark theme
+tokens load from `config/` with strict parse errors and compiled-in fallbacks; the app
+uses those tokens for every scene colour. Line layout, widgets, and the full demo
+screen are the next increments.
 
 `SDL3_ttf` is **not** part of the core pipeline: we use FreeType/HarfBuzz directly to
 control shaping and caching. The Makefile that referenced it was removed in Phase 1,
@@ -322,6 +325,10 @@ A **retained widget tree with immediate-mode draw-list emission**:
   approved parser, pinned/vendored; malformed files are reported with path, code,
   message, and byte position and then fall back to defaults. Expensive parsing runs on
   workers, never on the UI thread. See [ADR-001](architecture/ADR-001-json-parsing-yyjson.md).
+  Implemented: `vellum_config` wraps yyjson with typed settings and theme tokens, a
+  1 MiB read bound, strict unknown/duplicate-key checks, and path-qualified parse
+  errors. Settings and dark/light theme defaults ship in `config/`. User override
+  files and file-change reload are still pending.
 - **Filesystem/project:** workspace root, async directory enumeration, file watches,
   safe create/rename/delete with confirmation and error reporting.
 - **Search:** in-file search uses the buffer directly (regex via a small C regex engine
@@ -366,13 +373,16 @@ The build is **CMake + Ninja + Clang**. The Makefile was removed in Phase 1 at t
 user's request; CMake presets are the only supported path.
 
 - Top-level `CMakeLists.txt` defines static libraries per subsystem and a small
-  `src/main.c` executable. The phase currently implemented has `vellum_core`,
-  `vellum_graphics`, `vellum_platform`, and `vellum_app`.
+  `src/main.c` executable. The libraries implemented so far are `vellum_core`,
+  `vellum_text`, `vellum_graphics`, `vellum_config`, `vellum_platform`, and
+  `vellum_app`, plus the vendored `yyjson_vendored` target.
 - Presets in `CMakePresets.json`: `debug` (ASan/UBSan, `-O0 -g`, warnings as errors),
   `release` (optimized, warnings as errors), and `bench` (optimized with debug info).
 - Dependencies via `find_package(SDL3 CONFIG REQUIRED)`, with `pkg_check_modules` for
-  FreeType, HarfBuzz, and ICU as each subsystem lands. CMake's package is `SDL3`
-  while pkg-config's module is `sdl3` — both were verified present.
+  FreeType, HarfBuzz, and ICU. CMake's package is `SDL3` while pkg-config's module is
+  `sdl3` — both were verified present. yyjson is vendored as a separate target so
+  Vellum's `-Werror` warning set is not applied to third-party code; sanitizer flags
+  still apply.
 - Sanitizers are enabled by the debug preset; LTO is considered for release only after
   measurement.
 
@@ -437,6 +447,6 @@ below is a non-normative summary; the ADR is authoritative wherever both cover a
 
 ---
 
-**Next step:** continue Phase 2 (Native UI and text foundation) with theme/config,
-widgets/panels, and the multilingual demo screen. ICU, FreeType, HarfBuzz, renderer
-textures, and atlas upload are implemented and verified; see `ROADMAP.md`.
+**Next step:** continue Phase 2 (Native UI and text foundation) with widgets/panels
+and the multilingual demo screen. ICU, FreeType, HarfBuzz, renderer textures, atlas
+upload, and typed config/themes are implemented and verified; see `ROADMAP.md`.

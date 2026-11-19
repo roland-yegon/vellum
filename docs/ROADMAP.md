@@ -189,10 +189,22 @@ Implemented increments, each built and tested before proceeding:
   recorded in [ADR-005](architecture/ADR-005-bundled-multilingual-fonts.md). The system
   text libraries and their licences are recorded in
   [ADR-006](architecture/ADR-006-icu-freetype-harfbuzz-text-pipeline.md).
+- yyjson 0.13.0 is vendored under `third_party/yyjson/` with the release archive SHA-256
+  and MIT notice recorded; the pin and parser choice are in
+  [ADR-001](architecture/ADR-001-json-parsing-yyjson.md) and `ARCHITECTURE.md` §4. The
+  vendored source is a separate CMake target so Vellum's `-Werror` flags do not apply.
+- `vellum_config` wraps yyjson with typed settings (`theme`, `font_size`, panel visibility)
+  and semantic light/dark theme tokens. It enforces a 1 MiB read bound, strict
+  unknown/duplicate-key checks, and path-qualified parse errors; settings and both theme
+  defaults ship in `config/`. Unit tests cover defaults, shipped defaults, save/load
+  round-trip, malformed JSON, unknown and duplicate keys, wrong types, and out-of-range
+  values. The app loads settings/themes with compiled-in fallbacks, drives every scene
+  colour from theme tokens, and switches themes with `T` via the input event path.
 - Debug, release, and bench presets build and pass `ctest` (unit, app events, renderer
   textures); debug runs under ASan/UBSan, and `clang-format --dry-run --Werror` is clean.
 
-Remaining Phase 2 work: theme/config, widgets/panels, and the multilingual demo screen.
+Remaining Phase 2 work: user override files and reload-on-change, widgets/panels, and
+the multilingual demo screen.
 
 ---
 
@@ -429,5 +441,6 @@ To keep the project honest, these are explicitly **not** early work:
 ## 4. Immediate next action
 
 Phase 1 is complete and verified. In Phase 2, ICU validation/graphemes, the FreeType
-atlas, HarfBuzz shaping, renderer texture support, and atlas upload are complete and
-tested. Next add theme/config, widgets/panels, and the multilingual demo screen.
+atlas, HarfBuzz shaping, renderer texture support, atlas upload, and typed config/themes
+are complete and tested. Next add user override files and reload-on-change, widgets/panels,
+and the multilingual demo screen.

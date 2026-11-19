@@ -29,8 +29,10 @@ The debug preset enables AddressSanitizer and UBSan and treats warnings as error
 ```
 
 The window closes with `Esc`, the window manager's close button, or `SIGINT`/`SIGTERM`.
-Startup logs the linked SDL version, the renderer SDL selected, the preferences path,
-and frame timing for the first rendered frame.
+Press `T` to switch between the dark and light themes; all panels are recoloured from
+semantic theme tokens. Startup logs the linked SDL version, the renderer SDL selected,
+the active theme and font size, the preferences path, and frame timing for the first
+rendered frame.
 
 Tests and benchmarks:
 
@@ -52,6 +54,8 @@ integration tests, and the benchmark skeleton. Phase 2 is in progress: ICU-backe
 UTF-8 validation and grapheme boundaries, a FreeType glyph atlas with pinned
 multilingual fonts, HarfBuzz run shaping with fallback and a cache, renderer-owned
 textures with per-texture geometry batching, and glyph-atlas upload are in place.
+Vendored yyjson (0.13.0) powers typed settings and semantic light/dark theme tokens
+loaded from `config/` with strict parse errors and compiled-in fallbacks.
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence.
 
 ## Architecture
