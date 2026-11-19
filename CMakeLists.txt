@@ -85,6 +85,7 @@ add_library(vellum_text STATIC
     src/text/line_index.c
     src/text/command.c
     src/text/cursor.c
+    src/text/cursor_set.c
     src/text/edit.c
     src/text/scroll.c
 )
@@ -159,6 +160,7 @@ add_executable(vellum_unit_tests
     tests/unit/test_line_index.c
     tests/unit/test_command.c
     tests/unit/test_cursor.c
+    tests/unit/test_cursor_set.c
     tests/unit/test_edit.c
     tests/unit/test_clipboard.c
     tests/unit/test_scroll.c

@@ -348,9 +348,15 @@ content extent from `line_count * line_height`, accepts a caller-supplied horizo
 content width, clamps scroll offsets to the view size, maps offsets to visible logical
 lines and byte ranges, and supports minimal scroll-to-line/offset. It stays free of SDL
 and layout dependencies, so the view-rect origin and draw-list scissor remain UI concerns;
-wrapped-line movement and scrollbar widgets are deferred. App-level keybindings and
-editor-state ownership are deferred to the editor-experience phase. Bracket completion,
-multiple cursors, and drag-and-drop remain deferred.
+wrapped-line movement and scrollbar widgets are deferred. Multiple cursors are
+implemented in `src/text/cursor_set.c` with the API in `include/vellum/text/cursor_set.h`:
+a `VellumCursorSet` owns one or more `VellumCursor` instances over the shared buffer and
+line index, keeps a primary caret, and forwards movement, collapse, and insert/delete
+remapping to every caret; overlapping additions are ignored. The set supplies caret
+state and remapping only — applying a single edit at all carets belongs to the
+edit/command-transaction layer and is deferred. App-level keybindings and editor-state
+ownership are deferred to the editor-experience phase. Bracket completion and
+drag-and-drop remain deferred.
 
 ### 7.6 Editor model
 
@@ -542,7 +548,8 @@ is in progress with the standalone buffer core, line index, command stack (inclu
 adjacent-insert typing coalescing), grapheme-aware cursor/selection, editing operations
 (insert/replace, grapheme-aware delete, smart backspace, newline auto-indent,
 indent/outdent), SDL-backed clipboard support (text-level copy/cut/paste plus a platform
-wrapper), a layout-independent scrolling model over the line index, and scale benchmarks
-(100 MB open and 1M-line end typing meet the §10 targets) implemented and verified; see
+wrapper), a layout-independent scrolling model over the line index, multiple cursors as a
+remapped caret set, and scale benchmarks (100 MB open and 1M-line end typing meet the §10
+targets) implemented and verified; see
 [`benchmarks/2026-11-19-text-buffer-scale.md`](benchmarks/2026-11-19-text-buffer-scale.md).
-The next increment is multiple cursors.
+The next increment is bracket completion.

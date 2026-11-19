@@ -398,8 +398,8 @@ layer are implemented and verified as the first Phase 3 increments:
   current line, and indent/outdent of every logical line touched by the selection.
   Every operation goes through the command stack and notifies the cursor, so each call
   is one undo entry; undo/redo wrappers clamp and re-snap the caret. The indent unit is
-  configurable (default four spaces). Bracket completion, multiple cursors, drag-and-drop,
-  and wrapped/visual-line movement remain deferred.
+  configurable (default four spaces). Bracket completion, drag-and-drop, applying a single
+  edit at all carets, and wrapped/visual-line movement remain deferred.
 - `src/text/edit.c` groups multi-edit calls in transactions so a failed operation
   aborts cleanly, and deletes the preceding line break when backspacing at a line start
   rather than treating it as a zero-width outdent.
@@ -435,6 +435,18 @@ layer are implemented and verified as the first Phase 3 increments:
   visible-line and byte-range mapping (including empty documents and unaligned views),
   scroll-to-line/offset, horizontal ensure-visible, re-clamping after an edit shrinks the
   line count, and an invariant sweep across view heights and scroll offsets.
+- Multiple cursors are provided by `include/vellum/text/cursor_set.h` and
+  `src/text/cursor_set.c` in the SDL-free `vellum_text` library. `VellumCursorSet`
+  owns one or more `VellumCursor` instances over a shared buffer and line index,
+  always keeps a primary caret, and reuses the single-cursor logic unchanged. It
+  supports adding collapsed or selected carets (ignoring overlapping duplicates),
+  removal and primary-index adjustment, clearing back to one caret, moving or
+  collapsing every caret, and remapping every caret on insert/delete. Applying a
+  single edit simultaneously at all carets stays in the edit/command-transaction
+  layer (see Phase 4); this increment supplies the set primitive and its remapping.
+- Unit tests in `tests/unit/test_cursor_set.c` cover creation, add/dedupe, grapheme
+  snapping, primary selection and removal, clear, all-caret movement and extension,
+  insert/delete remapping, NULL handling, and a structural-plus-edit stress sweep.
 - Scale benchmarks in `tests/benchmarks/bench_text_buffer.c` cover the Phase 3 exit
   targets: a 100 MB file open (165–168 ms, well under the 1 s §10 target) and 1M-line
   end typing (24–27 µs p95, under the 16 ms §10 target). A 10,000-operation random-edit
@@ -443,9 +455,8 @@ layer are implemented and verified as the first Phase 3 increments:
   line insert/delete. The two-level index remains deferred. Full numbers and verdicts
   are in [`benchmarks/2026-11-19-text-buffer-scale.md`](benchmarks/2026-11-19-text-buffer-scale.md).
 
-Remaining Phase 3 increments (drag-and-drop, bracket completion, multiple cursors,
-and scrollbar rendering) are not yet implemented; the phase exit criteria are therefore
-not yet met.
+Remaining Phase 3 increments (drag-and-drop, bracket completion, and scrollbar rendering)
+are not yet implemented; the phase exit criteria are therefore not yet met.
 
 ---
 
@@ -655,7 +666,8 @@ inverse-operation undo/redo with transactions, bounded memory, adjacent-insert t
 coalescing, grapheme-aware cursor/selection with edit remapping, editing operations
 (insert/replace, grapheme-aware delete, smart backspace, newline auto-indent, and
 indent/outdent), SDL-backed clipboard support via a text-level copy/cut/paste API and a
-platform clipboard wrapper, a layout-independent scrolling model over the line index, and
-scale benchmarks with recorded exit evidence (100 MB open and 1M-line end typing both
-pass), plus differential fuzz tests. The next action is multiple cursors, keeping all
-earlier builds, tests, and benchmarks green.
+platform clipboard wrapper, a layout-independent scrolling model over the line index,
+multiple cursors as a remapped caret set, and scale benchmarks with recorded exit
+evidence (100 MB open and 1M-line end typing both pass), plus differential fuzz tests.
+The next actions are bracket completion and drag-and-drop, keeping all earlier builds,
+tests, and benchmarks green.

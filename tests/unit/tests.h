@@ -19,6 +19,7 @@ bool test_buffer(void);
 bool test_line_index(void);
 bool test_command(void);
 bool test_cursor(void);
+bool test_cursor_set(void);
 bool test_edit(void);
 bool test_clipboard(void);
 bool test_scroll(void);
