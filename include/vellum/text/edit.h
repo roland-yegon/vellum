@@ -18,6 +18,19 @@
 extern "C" {
 #endif
 
+/* A bracket pair of single ASCII bytes. `open == close` models quotes, where
+ * the same byte both opens and closes. */
+typedef struct {
+    char open;
+    char close;
+} VellumBracketPair;
+
+#define VELLUM_BRACKET_MAX_PAIRS 8u
+
+/* Built-in language-agnostic pairs: (), [], {}, "", ''. `*count` receives the
+ * number of pairs and may be NULL; the returned array is static. */
+const VellumBracketPair *vellum_bracket_defaults(size_t *count);
+
 /* Coordinates editing operations over a buffer, its line index, an undoable
  * command stack, and a cursor. All four dependencies are borrowed and must
  * outlive the editor. Every operation goes through the command stack, so a
@@ -38,6 +51,23 @@ void vellum_editor_destroy(VellumEditor *editor);
 bool vellum_editor_set_indent_unit(VellumEditor *editor, const char *unit, size_t length,
                                    VellumErrorInfo *error);
 size_t vellum_editor_indent_length(const VellumEditor *editor);
+
+/* Configures the pairs used by `vellum_editor_type_char`. The array is copied
+ * into fixed storage (at most VELLUM_BRACKET_MAX_PAIRS); NULL or zero restores
+ * the defaults. Returns false for too many pairs or a NUL byte in a pair. When
+ * a byte appears as the open of more than one pair, the first pair wins. */
+bool vellum_editor_set_bracket_pairs(VellumEditor *editor, const VellumBracketPair *pairs,
+                                     size_t count, VellumErrorInfo *error);
+size_t vellum_editor_bracket_pair_count(const VellumEditor *editor);
+
+/* Types a single ASCII byte with bracket completion. With a collapsed caret:
+ * typing a closing byte directly before that same byte skips over it (so an
+ * auto-inserted closer is not duplicated); typing an opening byte inserts the
+ * pair as one undo entry and leaves the caret between the two bytes. With a
+ * selection, typing an opening byte wraps it in the pair as one undo entry and
+ * keeps the inner text selected. Any other byte is an ordinary insertion.
+ * UTF-8 text should use `vellum_editor_insert_text` instead. */
+bool vellum_editor_type_char(VellumEditor *editor, char ch, VellumErrorInfo *error);
 
 /* Replaces the current selection, or inserts at the caret when it is collapsed. */
 bool vellum_editor_insert_text(VellumEditor *editor, const char *text, size_t length,
@@ -63,9 +93,11 @@ bool vellum_editor_cut(VellumEditor *editor, char **out_text, size_t *out_length
 bool vellum_editor_paste(VellumEditor *editor, const char *text, size_t length,
                          VellumErrorInfo *error);
 
-/* Deletes the selection. Otherwise backspace removes the previous grapheme,
- * or one indent unit while inside a line's leading whitespace. Delete removes
- * the next grapheme. Both are no-ops at the corresponding buffer boundary. */
+/* Deletes the selection. Otherwise backspace first removes an empty bracket
+ * pair when the caret sits between the two bytes, then falls back to removing
+ * the previous grapheme, or one indent unit while inside a line's leading
+ * whitespace. Delete removes the next grapheme. Both are no-ops at the
+ * corresponding buffer boundary. */
 bool vellum_editor_backspace(VellumEditor *editor, VellumErrorInfo *error);
 bool vellum_editor_delete(VellumEditor *editor, VellumErrorInfo *error);
 

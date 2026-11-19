@@ -12,6 +12,9 @@
 #define VELLUM_EDITOR_INDENT_CAPACITY 16u
 #define VELLUM_EDITOR_DEFAULT_INDENT "    "
 
+static const VellumBracketPair DEFAULT_BRACKETS[] = {
+    {'(', ')'}, {'[', ']'}, {'{', '}'}, {'"', '"'}, {'\'', '\''}};
+
 struct VellumEditor {
     VellumBuffer *buffer;
     VellumLineIndex *lines;
@@ -19,6 +22,8 @@ struct VellumEditor {
     VellumCursor *cursor;
     char indent[VELLUM_EDITOR_INDENT_CAPACITY];
     size_t indent_length;
+    VellumBracketPair brackets[VELLUM_BRACKET_MAX_PAIRS];
+    size_t bracket_count;
 };
 
 static bool line_of(const VellumEditor *editor, size_t offset, size_t *line, VellumErrorInfo *error)
@@ -167,6 +172,8 @@ VellumEditor *vellum_editor_create(VellumBuffer *buffer, VellumLineIndex *lines,
     editor->cursor = cursor;
     memcpy(editor->indent, VELLUM_EDITOR_DEFAULT_INDENT, sizeof(VELLUM_EDITOR_DEFAULT_INDENT) - 1u);
     editor->indent_length = sizeof(VELLUM_EDITOR_DEFAULT_INDENT) - 1u;
+    memcpy(editor->brackets, DEFAULT_BRACKETS, sizeof(DEFAULT_BRACKETS));
+    editor->bracket_count = sizeof(DEFAULT_BRACKETS) / sizeof(DEFAULT_BRACKETS[0u]);
     return editor;
 }
 
@@ -209,6 +216,167 @@ bool vellum_editor_set_indent_unit(VellumEditor *editor, const char *unit, size_
 size_t vellum_editor_indent_length(const VellumEditor *editor)
 {
     return editor == NULL ? 0u : editor->indent_length;
+}
+
+const VellumBracketPair *vellum_bracket_defaults(size_t *count)
+{
+    if (count != NULL) {
+        *count = sizeof(DEFAULT_BRACKETS) / sizeof(DEFAULT_BRACKETS[0u]);
+    }
+    return DEFAULT_BRACKETS;
+}
+
+bool vellum_editor_set_bracket_pairs(VellumEditor *editor, const VellumBracketPair *pairs,
+                                     size_t count, VellumErrorInfo *error)
+{
+    vellum_error_init(error);
+    if (editor == NULL) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "set brackets needs an editor");
+        return false;
+    }
+    if (pairs == NULL || count == 0u) {
+        memcpy(editor->brackets, DEFAULT_BRACKETS, sizeof(DEFAULT_BRACKETS));
+        editor->bracket_count = sizeof(DEFAULT_BRACKETS) / sizeof(DEFAULT_BRACKETS[0u]);
+        return true;
+    }
+    if (count > VELLUM_BRACKET_MAX_PAIRS) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "too many bracket pairs (max %u)",
+                         VELLUM_BRACKET_MAX_PAIRS);
+        return false;
+    }
+    for (size_t i = 0u; i < count; ++i) {
+        if (pairs[i].open == '\0' || pairs[i].close == '\0') {
+            vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT,
+                             "bracket pairs cannot contain a NUL byte");
+            return false;
+        }
+    }
+    memcpy(editor->brackets, pairs, count * sizeof(editor->brackets[0u]));
+    editor->bracket_count = count;
+    return true;
+}
+
+size_t vellum_editor_bracket_pair_count(const VellumEditor *editor)
+{
+    return editor == NULL ? 0u : editor->bracket_count;
+}
+
+static const VellumBracketPair *pair_for_open(const VellumEditor *editor, char ch)
+{
+    for (size_t i = 0u; i < editor->bracket_count; ++i) {
+        if (editor->brackets[i].open == ch) {
+            return &editor->brackets[i];
+        }
+    }
+    return NULL;
+}
+
+static const VellumBracketPair *pair_for_close(const VellumEditor *editor, char ch)
+{
+    for (size_t i = 0u; i < editor->bracket_count; ++i) {
+        if (editor->brackets[i].close == ch) {
+            return &editor->brackets[i];
+        }
+    }
+    return NULL;
+}
+
+bool vellum_editor_type_char(VellumEditor *editor, char ch, VellumErrorInfo *error)
+{
+    vellum_error_init(error);
+    if (editor == NULL) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "type needs an editor");
+        return false;
+    }
+    if (ch == '\0') {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "cannot type a NUL byte");
+        return false;
+    }
+
+    const bool collapsed = !vellum_cursor_has_selection(editor->cursor);
+    const size_t position = vellum_cursor_position(editor->cursor);
+
+    /* Typing a closer directly before that same closer steps over it rather
+     * than inserting a duplicate. This is the common case for a closer that
+     * was just auto-inserted, but it also applies to a manually typed one. */
+    if (collapsed && pair_for_close(editor, ch) != NULL &&
+        position < vellum_buffer_length(editor->buffer)) {
+        char next = '\0';
+        if (!vellum_buffer_read(editor->buffer, position, &next, 1u, error)) {
+            return false;
+        }
+        if (next == ch) {
+            return vellum_cursor_set(editor->cursor, position + 1u, error);
+        }
+    }
+
+    const VellumBracketPair *pair = pair_for_open(editor, ch);
+    if (pair == NULL) {
+        return vellum_editor_insert_text(editor, &ch, 1u, error);
+    }
+
+    if (collapsed) {
+        const char text[2u] = {ch, pair->close};
+        if (!vellum_command_insert(editor->commands, position, text, 2u, error) ||
+            !vellum_cursor_notify_insert(editor->cursor, position, 2u, error)) {
+            return false;
+        }
+        return vellum_cursor_set(editor->cursor, position + 1u, error);
+    }
+
+    /* Wrap the selected text in one undo transaction, then reselect the inner
+     * range so a following type-over or replacement behaves naturally. */
+    const size_t start = vellum_cursor_selection_start(editor->cursor);
+    const size_t end = vellum_cursor_selection_end(editor->cursor);
+    const size_t selected = end - start;
+    char *inner = NULL;
+    char *wrapped = NULL;
+    bool ok = false;
+    if (selected > 0u) {
+        inner = malloc(selected);
+        if (inner == NULL) {
+            vellum_error_set(error, VELLUM_ERR_ALLOC_FAILED, "could not read the selection");
+            goto done;
+        }
+        if (!vellum_buffer_read(editor->buffer, start, inner, selected, error)) {
+            goto done;
+        }
+    }
+    const size_t wrapped_length = selected + 2u;
+    wrapped = malloc(wrapped_length);
+    if (wrapped == NULL) {
+        vellum_error_set(error, VELLUM_ERR_ALLOC_FAILED, "could not build the wrapped text");
+        goto done;
+    }
+    wrapped[0u] = ch;
+    if (selected > 0u) {
+        memcpy(wrapped + 1u, inner, selected);
+    }
+    wrapped[wrapped_length - 1u] = pair->close;
+
+    if (!vellum_command_begin(editor->commands, error)) {
+        goto done;
+    }
+    ok = vellum_command_delete(editor->commands, start, selected, error);
+    if (ok) {
+        ok = vellum_command_insert(editor->commands, start, wrapped, wrapped_length, error);
+    }
+    if (ok) {
+        ok = vellum_command_commit(editor->commands, error);
+    } else {
+        (void)vellum_command_abort(editor->commands, error);
+    }
+    if (!ok || !vellum_cursor_notify_delete(editor->cursor, start, selected, error) ||
+        !vellum_cursor_notify_insert(editor->cursor, start, wrapped_length, error)) {
+        ok = false;
+        goto done;
+    }
+    ok = vellum_cursor_select(editor->cursor, start + 1u, start + 1u + selected, error);
+
+done:
+    free(inner);
+    free(wrapped);
+    return ok;
 }
 
 bool vellum_editor_insert_text(VellumEditor *editor, const char *text, size_t length,
@@ -316,6 +484,22 @@ bool vellum_editor_paste(VellumEditor *editor, const char *text, size_t length,
     return replace_selection(editor, text, length, error);
 }
 
+/* Detects a caret sitting between the two bytes of an empty bracket pair. */
+static bool empty_pair_at(const VellumEditor *editor, size_t position, VellumErrorInfo *error)
+{
+    if (position == 0u || position >= vellum_buffer_length(editor->buffer)) {
+        return false;
+    }
+    char before = '\0';
+    char after = '\0';
+    if (!vellum_buffer_read(editor->buffer, position - 1u, &before, 1u, error) ||
+        !vellum_buffer_read(editor->buffer, position, &after, 1u, error)) {
+        return false;
+    }
+    const VellumBracketPair *pair = pair_for_open(editor, before);
+    return pair != NULL && pair->close == after;
+}
+
 bool vellum_editor_backspace(VellumEditor *editor, VellumErrorInfo *error)
 {
     vellum_error_init(error);
@@ -330,6 +514,9 @@ bool vellum_editor_backspace(VellumEditor *editor, VellumErrorInfo *error)
     const size_t position = vellum_cursor_position(editor->cursor);
     if (position == 0u) {
         return true;
+    }
+    if (empty_pair_at(editor, position, error)) {
+        return erase(editor, position - 1u, 2u, error);
     }
     size_t line = 0u;
     size_t line_start = 0u;

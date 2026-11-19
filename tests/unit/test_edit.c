@@ -18,6 +18,8 @@
 #include "vellum/text/line_index.h"
 #include "vellum/text/unicode.h"
 
+static uint32_t next_random(uint32_t *state);
+
 typedef struct {
     VellumBuffer *buffer;
     VellumLineIndex *lines;
@@ -84,6 +86,20 @@ static bool check_position(const Fixture *fixture, size_t head, const char *labe
         vellum_cursor_has_selection(fixture->cursor)) {
         fprintf(stderr, "edit %s: expected caret %zu collapsed, got %zu (selection %d)\n", label,
                 head, vellum_cursor_position(fixture->cursor),
+                vellum_cursor_has_selection(fixture->cursor) ? 1 : 0);
+        return false;
+    }
+    return true;
+}
+
+static bool check_selection(const Fixture *fixture, size_t anchor, size_t head, const char *label)
+{
+    if (!vellum_cursor_has_selection(fixture->cursor) ||
+        vellum_cursor_anchor(fixture->cursor) != anchor ||
+        vellum_cursor_position(fixture->cursor) != head) {
+        fprintf(stderr, "edit %s: expected selection [%zu,%zu), got [%zu,%zu) (has %d)\n", label,
+                anchor, head, vellum_cursor_anchor(fixture->cursor),
+                vellum_cursor_position(fixture->cursor),
                 vellum_cursor_has_selection(fixture->cursor) ? 1 : 0);
         return false;
     }
@@ -464,6 +480,369 @@ static bool clipboard_text_operations(void)
     return ok;
 }
 
+static bool bracket_configuration(void)
+{
+    Fixture fixture;
+    if (!fixture_init(&fixture, "", 0u)) {
+        return false;
+    }
+    VellumErrorInfo error;
+    vellum_error_init(&error);
+    bool ok = true;
+
+    size_t count = 0u;
+    const VellumBracketPair *defaults = vellum_bracket_defaults(&count);
+    if (defaults == NULL || count != 5u || defaults[0u].open != '(' || defaults[0u].close != ')' ||
+        defaults[4u].open != '\'' || defaults[4u].close != '\'' ||
+        vellum_bracket_defaults(NULL) == NULL) {
+        fprintf(stderr, "edit bracket defaults are wrong\n");
+        ok = false;
+    }
+    if (vellum_editor_bracket_pair_count(fixture.editor) != 5u) {
+        fprintf(stderr, "edit bracket default count is wrong\n");
+        ok = false;
+    }
+
+    const VellumBracketPair custom[] = {{'<', '>'}, {'|', '|'}};
+    if (!vellum_editor_set_bracket_pairs(fixture.editor, custom, 2u, &error) ||
+        vellum_editor_bracket_pair_count(fixture.editor) != 2u) {
+        fprintf(stderr, "edit bracket configure failed: %s\n", vellum_error_message(&error));
+        ok = false;
+    }
+    if (ok && !vellum_editor_type_char(fixture.editor, '<', &error)) {
+        fprintf(stderr, "edit bracket custom type failed: %s\n", vellum_error_message(&error));
+        ok = false;
+    }
+    if (ok && !check_text(&fixture, "<>", 2u)) {
+        ok = false;
+    }
+
+    if (!vellum_editor_set_bracket_pairs(fixture.editor, NULL, 0u, &error) ||
+        vellum_editor_bracket_pair_count(fixture.editor) != 5u) {
+        fprintf(stderr, "edit bracket restore defaults failed\n");
+        ok = false;
+    }
+
+    VellumBracketPair too_many[VELLUM_BRACKET_MAX_PAIRS + 1u];
+    for (size_t i = 0u; i <= VELLUM_BRACKET_MAX_PAIRS; ++i) {
+        too_many[i] = (VellumBracketPair){'(', ')'};
+    }
+    const VellumBracketPair with_nul[] = {{'(', '\0'}};
+    if (vellum_editor_set_bracket_pairs(fixture.editor, too_many, VELLUM_BRACKET_MAX_PAIRS + 1u,
+                                        &error) ||
+        error.code != VELLUM_ERR_INVALID_ARGUMENT ||
+        vellum_editor_set_bracket_pairs(fixture.editor, with_nul, 1u, &error) ||
+        error.code != VELLUM_ERR_INVALID_ARGUMENT) {
+        fprintf(stderr, "edit bracket bad configuration was accepted\n");
+        ok = false;
+    }
+    if (vellum_editor_set_bracket_pairs(NULL, custom, 2u, &error) ||
+        vellum_editor_bracket_pair_count(NULL) != 0u ||
+        vellum_editor_type_char(NULL, 'a', &error) ||
+        vellum_editor_type_char(fixture.editor, '\0', &error)) {
+        fprintf(stderr, "edit bracket NULL handling failed\n");
+        ok = false;
+    }
+
+    fixture_destroy(&fixture);
+    return ok;
+}
+
+static bool bracket_typing(void)
+{
+    Fixture fixture;
+    if (!fixture_init(&fixture, "", 0u)) {
+        return false;
+    }
+    VellumErrorInfo error;
+    vellum_error_init(&error);
+    bool ok = true;
+#define EDIT_STEP(name, expr)                                                                      \
+    do {                                                                                           \
+        if (ok && !(expr)) {                                                                       \
+            fprintf(stderr, "edit bracket %s failed: %s\n", name, vellum_error_message(&error));   \
+            ok = false;                                                                            \
+        }                                                                                          \
+    } while (0)
+
+    /* A collapsed caret auto-closes a pair as one undo entry. */
+    EDIT_STEP("type open", vellum_editor_type_char(fixture.editor, '(', &error));
+    EDIT_STEP("auto closed", check_text(&fixture, "()", 2u));
+    EDIT_STEP("caret inside", check_position(&fixture, 1u, "caret inside"));
+    EDIT_STEP("undo pair", vellum_editor_undo(fixture.editor, &error));
+    EDIT_STEP("undone pair", check_text(&fixture, "", 0u));
+    EDIT_STEP("redo pair", vellum_editor_redo(fixture.editor, &error));
+    EDIT_STEP("redone pair", check_text(&fixture, "()", 2u));
+
+    /* Typing a closer before an existing closer steps past it. */
+    fixture_destroy(&fixture);
+    if (!fixture_init(&fixture, "()", 2u)) {
+        return false;
+    }
+    EDIT_STEP("caret between", vellum_cursor_set(fixture.cursor, 1u, &error));
+    EDIT_STEP("type over", vellum_editor_type_char(fixture.editor, ')', &error));
+    EDIT_STEP("unchanged", check_text(&fixture, "()", 2u));
+    EDIT_STEP("stepped past", check_position(&fixture, 2u, "stepped past"));
+
+    /* A closer with no matching byte after it inserts normally. */
+    fixture_destroy(&fixture);
+    if (!fixture_init(&fixture, "abc", 3u)) {
+        return false;
+    }
+    EDIT_STEP("caret zero", vellum_cursor_set(fixture.cursor, 0u, &error));
+    EDIT_STEP("stray close", vellum_editor_type_char(fixture.editor, ')', &error));
+    EDIT_STEP("stray inserted", check_text(&fixture, ")abc", 4u));
+    EDIT_STEP("stray caret", check_position(&fixture, 1u, "stray caret"));
+
+    /* Nesting a pair inside a pair inserts at the caret and keeps both. */
+    fixture_destroy(&fixture);
+    if (!fixture_init(&fixture, "()", 2u)) {
+        return false;
+    }
+    EDIT_STEP("inside outer", vellum_cursor_set(fixture.cursor, 1u, &error));
+    EDIT_STEP("type inner", vellum_editor_type_char(fixture.editor, '[', &error));
+    EDIT_STEP("nested", check_text(&fixture, "([])", 4u));
+    EDIT_STEP("nested caret", check_position(&fixture, 2u, "nested caret"));
+
+    /* Symmetric quotes: the first types a pair, the second steps over it. */
+    fixture_destroy(&fixture);
+    if (!fixture_init(&fixture, "", 0u)) {
+        return false;
+    }
+    EDIT_STEP("type quote", vellum_editor_type_char(fixture.editor, '"', &error));
+    EDIT_STEP("quote pair", check_text(&fixture, "\"\"", 2u));
+    EDIT_STEP("quote caret", check_position(&fixture, 1u, "quote caret"));
+    EDIT_STEP("type quote again", vellum_editor_type_char(fixture.editor, '"', &error));
+    EDIT_STEP("still quote pair", check_text(&fixture, "\"\"", 2u));
+    EDIT_STEP("past quotes", check_position(&fixture, 2u, "past quotes"));
+
+    /* A non-bracket byte is an ordinary insertion. */
+    EDIT_STEP("type normal", vellum_editor_type_char(fixture.editor, 'x', &error));
+    EDIT_STEP("normal inserted", check_text(&fixture, "\"\"x", 3u));
+
+#undef EDIT_STEP
+    fixture_destroy(&fixture);
+    return ok;
+}
+
+static bool bracket_wrap_and_backspace(void)
+{
+    Fixture fixture;
+    if (!fixture_init(&fixture, "abcde", 5u)) {
+        return false;
+    }
+    VellumErrorInfo error;
+    vellum_error_init(&error);
+    bool ok = true;
+#define EDIT_STEP(name, expr)                                                                      \
+    do {                                                                                           \
+        if (ok && !(expr)) {                                                                       \
+            fprintf(stderr, "edit bracket wrap %s failed: %s\n", name,                             \
+                    vellum_error_message(&error));                                                 \
+            ok = false;                                                                            \
+        }                                                                                          \
+    } while (0)
+
+    /* Wrapping a selection keeps the inner text selected as one undo entry. */
+    EDIT_STEP("select bcd", vellum_cursor_select(fixture.cursor, 1u, 4u, &error));
+    EDIT_STEP("wrap", vellum_editor_type_char(fixture.editor, '(', &error));
+    EDIT_STEP("wrapped text", check_text(&fixture, "a(bcd)e", 7u));
+    EDIT_STEP("inner selected", check_selection(&fixture, 2u, 5u, "inner selected"));
+    EDIT_STEP("wrap undo", vellum_editor_undo(fixture.editor, &error));
+    EDIT_STEP("unwrapped", check_text(&fixture, "abcde", 5u));
+
+    /* Backspace on an empty pair removes both bytes as one entry. */
+    fixture_destroy(&fixture);
+    if (!fixture_init(&fixture, "()", 2u)) {
+        return false;
+    }
+    EDIT_STEP("inside empty", vellum_cursor_set(fixture.cursor, 1u, &error));
+    EDIT_STEP("backspace pair", vellum_editor_backspace(fixture.editor, &error));
+    EDIT_STEP("pair gone", check_text(&fixture, "", 0u));
+    EDIT_STEP("caret zero", check_position(&fixture, 0u, "caret zero"));
+    EDIT_STEP("undo backspace", vellum_editor_undo(fixture.editor, &error));
+    EDIT_STEP("pair restored", check_text(&fixture, "()", 2u));
+
+    /* Backspace on a non-empty pair deletes the preceding byte first. */
+    fixture_destroy(&fixture);
+    if (!fixture_init(&fixture, "(x)", 3u)) {
+        return false;
+    }
+    EDIT_STEP("before close", vellum_cursor_set(fixture.cursor, 2u, &error));
+    EDIT_STEP("backspace content", vellum_editor_backspace(fixture.editor, &error));
+    EDIT_STEP("content gone", check_text(&fixture, "()", 2u));
+    EDIT_STEP("backspace empty", vellum_editor_backspace(fixture.editor, &error));
+    EDIT_STEP("all gone", check_text(&fixture, "", 0u));
+
+    /* An empty pair inside leading whitespace removes only the pair. */
+    fixture_destroy(&fixture);
+    if (!fixture_init(&fixture, "  ()", 4u)) {
+        return false;
+    }
+    EDIT_STEP("in indented pair", vellum_cursor_set(fixture.cursor, 3u, &error));
+    EDIT_STEP("backspace indented pair", vellum_editor_backspace(fixture.editor, &error));
+    EDIT_STEP("indent kept", check_text(&fixture, "  ", 2u));
+
+#undef EDIT_STEP
+    fixture_destroy(&fixture);
+    return ok;
+}
+
+static bool ascii_is_open(char ch)
+{
+    return ch == '(' || ch == '[' || ch == '{' || ch == '"' || ch == '\'';
+}
+
+static bool ascii_is_close(char ch)
+{
+    return ch == ')' || ch == ']' || ch == '}' || ch == '"' || ch == '\'';
+}
+
+static char ascii_close_of(char ch)
+{
+    switch (ch) {
+    case '(':
+        return ')';
+    case '[':
+        return ']';
+    case '{':
+        return '}';
+    case '"':
+        return '"';
+    case '\'':
+        return '\'';
+    default:
+        return '\0';
+    }
+}
+
+static void model_delete(char *text, size_t *length, size_t start, size_t count)
+{
+    memmove(text + start, text + start + count, *length - start - count);
+    *length -= count;
+    text[*length] = '\0';
+}
+
+static void model_insert(char *text, size_t *length, size_t at, const char *bytes, size_t count)
+{
+    memmove(text + at + count, text + at, *length - at);
+    memcpy(text + at, bytes, count);
+    *length += count;
+    text[*length] = '\0';
+}
+
+static bool bracket_differential_fuzz(void)
+{
+    static const char alphabet[] = {'(', ')', '[', ']', '{', '}', '"', '\'', 'x'};
+    const size_t alphabet_size = sizeof(alphabet);
+    Fixture fixture;
+    if (!fixture_init(&fixture, "", 0u)) {
+        return false;
+    }
+    char model[256];
+    model[0] = '\0';
+    size_t length = 0u;
+    size_t anchor = 0u;
+    size_t head = 0u;
+    uint32_t state = 0xB0A6B17Bu;
+    VellumErrorInfo error;
+    vellum_error_init(&error);
+    bool ok = true;
+
+    for (uint32_t op = 0u; op < 5000u && ok; ++op) {
+        vellum_error_init(&error);
+        const bool type = (next_random(&state) & 1u) != 0u || anchor != head || length == 0u;
+        if (type && length < 100u) {
+            const char ch = alphabet[next_random(&state) % alphabet_size];
+            if (anchor == head) {
+                if (ascii_is_close(ch) && head < length && model[head] == ch) {
+                    ++head;
+                    anchor = head;
+                } else if (ascii_is_open(ch)) {
+                    const char pair[2u] = {ch, ascii_close_of(ch)};
+                    model_insert(model, &length, head, pair, 2u);
+                    ++head;
+                    anchor = head;
+                } else {
+                    model_insert(model, &length, head, &ch, 1u);
+                    ++head;
+                    anchor = head;
+                }
+                if (!vellum_editor_type_char(fixture.editor, ch, &error)) {
+                    fprintf(stderr, "edit bracket fuzz type failed at op %u: %s\n", op,
+                            vellum_error_message(&error));
+                    ok = false;
+                    break;
+                }
+            } else {
+                const size_t start = anchor < head ? anchor : head;
+                const size_t end = anchor < head ? head : anchor;
+                const size_t selected = end - start;
+                if (ascii_is_open(ch)) {
+                    char wrapped[258u];
+                    wrapped[0u] = ch;
+                    memcpy(wrapped + 1u, model + start, selected);
+                    wrapped[selected + 1u] = ascii_close_of(ch);
+                    model_delete(model, &length, start, selected);
+                    model_insert(model, &length, start, wrapped, selected + 2u);
+                    anchor = start + 1u;
+                    head = anchor + selected;
+                } else {
+                    model_delete(model, &length, start, selected);
+                    model_insert(model, &length, start, &ch, 1u);
+                    anchor = head = start + 1u;
+                }
+                if (!vellum_editor_type_char(fixture.editor, ch, &error)) {
+                    fprintf(stderr, "edit bracket fuzz wrap failed at op %u: %s\n", op,
+                            vellum_error_message(&error));
+                    ok = false;
+                    break;
+                }
+            }
+        } else if (head > 0u) {
+            if (anchor != head) {
+                const size_t start = anchor < head ? anchor : head;
+                const size_t end = anchor < head ? head : anchor;
+                model_delete(model, &length, start, end - start);
+                anchor = head = start;
+            } else if (head < length && ascii_is_open(model[head - 1u]) &&
+                       ascii_close_of(model[head - 1u]) == model[head]) {
+                model_delete(model, &length, head - 1u, 2u);
+                --head;
+                anchor = head;
+            } else {
+                model_delete(model, &length, head - 1u, 1u);
+                --head;
+                anchor = head;
+            }
+            if (!vellum_editor_backspace(fixture.editor, &error)) {
+                fprintf(stderr, "edit bracket fuzz backspace failed at op %u: %s\n", op,
+                        vellum_error_message(&error));
+                ok = false;
+                break;
+            }
+        } else {
+            continue;
+        }
+
+        if (!check_text(&fixture, model, length) ||
+            (anchor == head ? !check_position(&fixture, head, "bracket fuzz caret")
+                            : !check_selection(&fixture, anchor, head, "bracket fuzz selection"))) {
+            fprintf(stderr, "edit bracket fuzz state failed at op %u\n", op);
+            ok = false;
+            break;
+        }
+    }
+
+    if (ok && !vellum_editor_validate(fixture.editor, &error)) {
+        fprintf(stderr, "edit bracket fuzz final validate failed: %s\n",
+                vellum_error_message(&error));
+        ok = false;
+    }
+    fixture_destroy(&fixture);
+    return ok;
+}
+
 static bool configuration_and_validation(void)
 {
     Fixture fixture;
@@ -667,6 +1046,22 @@ bool test_edit(void)
     }
     if (!clipboard_text_operations()) {
         fprintf(stderr, "edit clipboard_text_operations failed\n");
+        return false;
+    }
+    if (!bracket_configuration()) {
+        fprintf(stderr, "edit bracket_configuration failed\n");
+        return false;
+    }
+    if (!bracket_typing()) {
+        fprintf(stderr, "edit bracket_typing failed\n");
+        return false;
+    }
+    if (!bracket_wrap_and_backspace()) {
+        fprintf(stderr, "edit bracket_wrap_and_backspace failed\n");
+        return false;
+    }
+    if (!bracket_differential_fuzz()) {
+        fprintf(stderr, "edit bracket_differential_fuzz failed\n");
         return false;
     }
     if (!configuration_and_validation()) {

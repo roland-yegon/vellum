@@ -398,8 +398,16 @@ layer are implemented and verified as the first Phase 3 increments:
   current line, and indent/outdent of every logical line touched by the selection.
   Every operation goes through the command stack and notifies the cursor, so each call
   is one undo entry; undo/redo wrappers clamp and re-snap the caret. The indent unit is
-  configurable (default four spaces). Bracket completion, drag-and-drop, applying a single
-  edit at all carets, and wrapped/visual-line movement remain deferred.
+  configurable (default four spaces). Drag-and-drop, applying a single edit at all carets,
+  and wrapped/visual-line movement remain deferred.
+- Bracket completion is built into `vellum_text` with the `VellumBracketPair` type and
+  `vellum_bracket_defaults` in `include/vellum/text/edit.h`. `vellum_editor_set_bracket_pairs`
+  configures up to `VELLUM_BRACKET_MAX_PAIRS` single-byte pairs (default `()`, `[]`, `{}`,
+  `""`, `''`); `vellum_editor_type_char` auto-closes an opening byte as one undo entry,
+  steps over an auto-inserted closer on type-over, and wraps a selection in one transaction
+  while reselecting the inner text. Backspace first removes an empty adjacent pair before
+  its normal grapheme/outdent logic. Configuration is language-agnostic; language-specific
+  rules remain deferred.
 - `src/text/edit.c` groups multi-edit calls in transactions so a failed operation
   aborts cleanly, and deletes the preceding line break when backspacing at a line start
   rather than treating it as a zero-width outdent.
@@ -408,7 +416,10 @@ layer are implemented and verified as the first Phase 3 increments:
   starts and on empty lines), newline auto-indent, single- and multi-line indent/outdent,
   indent-unit configuration, NULL handling, and a 10,000-operation differential fuzz
   against a contiguous-string model. The same fuzz was additionally run at 200,000
-  operations under ASan/UBSan as a stress check.
+  operations under ASan/UBSan as a stress check. Bracket tests cover default and custom
+  pair configuration, auto-close/type-over with undo/redo, symmetric quotes, nesting,
+  selection wrapping with inner reselection, empty-pair backspace (including inside
+  leading whitespace), and a 5,000-operation differential fuzz against a naive ASCII model.
 - Clipboard support is split across two layers. `vellum_text` adds SDL-free
   `vellum_editor_copy`, `vellum_editor_cut`, and `vellum_editor_paste`: copy reads the
   selected byte range into a caller-owned NUL-terminated allocation (reporting the exact
@@ -455,8 +466,8 @@ layer are implemented and verified as the first Phase 3 increments:
   line insert/delete. The two-level index remains deferred. Full numbers and verdicts
   are in [`benchmarks/2026-11-19-text-buffer-scale.md`](benchmarks/2026-11-19-text-buffer-scale.md).
 
-Remaining Phase 3 increments (drag-and-drop, bracket completion, and scrollbar rendering)
-are not yet implemented; the phase exit criteria are therefore not yet met.
+Remaining Phase 3 increments (drag-and-drop and scrollbar rendering) are not yet
+implemented; the phase exit criteria are therefore not yet met.
 
 ---
 
@@ -667,7 +678,8 @@ coalescing, grapheme-aware cursor/selection with edit remapping, editing operati
 (insert/replace, grapheme-aware delete, smart backspace, newline auto-indent, and
 indent/outdent), SDL-backed clipboard support via a text-level copy/cut/paste API and a
 platform clipboard wrapper, a layout-independent scrolling model over the line index,
-multiple cursors as a remapped caret set, and scale benchmarks with recorded exit
-evidence (100 MB open and 1M-line end typing both pass), plus differential fuzz tests.
-The next actions are bracket completion and drag-and-drop, keeping all earlier builds,
-tests, and benchmarks green.
+multiple cursors as a remapped caret set, configurable bracket completion (auto-close,
+type-over, selection wrapping, empty-pair backspace), and scale benchmarks with recorded
+exit evidence (100 MB open and 1M-line end typing both pass), plus differential fuzz tests.
+The next actions are drag-and-drop text movement and scrollbar rendering, keeping all
+earlier builds, tests, and benchmarks green.

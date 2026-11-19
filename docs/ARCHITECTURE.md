@@ -354,9 +354,15 @@ a `VellumCursorSet` owns one or more `VellumCursor` instances over the shared bu
 line index, keeps a primary caret, and forwards movement, collapse, and insert/delete
 remapping to every caret; overlapping additions are ignored. The set supplies caret
 state and remapping only — applying a single edit at all carets belongs to the
-edit/command-transaction layer and is deferred. App-level keybindings and editor-state
-ownership are deferred to the editor-experience phase. Bracket completion and
-drag-and-drop remain deferred.
+edit/command-transaction layer and is deferred. Bracket completion lives in the
+`vellum_text` editing layer (`include/vellum/text/edit.h`, `src/text/edit.c`):
+`VellumBracketPair` plus `vellum_bracket_defaults` define configurable single-byte pairs
+(default `()`, `[]`, `{}`, `""`, `''`), `vellum_editor_type_char` auto-closes an opening
+byte as one undo entry, steps over a duplicated closer, and wraps a selection in one
+transaction while reselecting the inner text, and backspace removes an empty adjacent
+pair before its normal grapheme/outdent logic. It stays language-agnostic; language rules
+and bracket matching/highlighting remain deferred. App-level keybindings and editor-state
+ownership are deferred to the editor-experience phase. Drag-and-drop remains deferred.
 
 ### 7.6 Editor model
 
@@ -549,7 +555,8 @@ adjacent-insert typing coalescing), grapheme-aware cursor/selection, editing ope
 (insert/replace, grapheme-aware delete, smart backspace, newline auto-indent,
 indent/outdent), SDL-backed clipboard support (text-level copy/cut/paste plus a platform
 wrapper), a layout-independent scrolling model over the line index, multiple cursors as a
-remapped caret set, and scale benchmarks (100 MB open and 1M-line end typing meet the §10
-targets) implemented and verified; see
+remapped caret set, configurable bracket completion (auto-close, type-over, selection
+wrapping, empty-pair backspace), and scale benchmarks (100 MB open and 1M-line end typing
+meet the §10 targets) implemented and verified; see
 [`benchmarks/2026-11-19-text-buffer-scale.md`](benchmarks/2026-11-19-text-buffer-scale.md).
-The next increment is bracket completion.
+The next increment is drag-and-drop text movement.
