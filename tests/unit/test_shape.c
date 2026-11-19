@@ -48,7 +48,7 @@ bool test_shape(void)
     const VellumShapedGlyph *glyphs =
         vellum_shaper_shape(shaper, "A", 1u, 24u, VELLUM_TEXT_LTR, &count, &error);
     if (glyphs == NULL || count != 1u || glyphs[0].glyph_index == 0u ||
-        glyphs[0].x_advance <= 0.0f || glyphs[0].cluster != 0u) {
+        glyphs[0].x_advance <= 0.0f || glyphs[0].cluster != 0u || glyphs[0].face_id != 1u) {
         vellum_shaper_destroy(shaper);
         vellum_font_system_destroy(fonts);
         return false;
@@ -102,7 +102,8 @@ bool test_shape(void)
     glyphs = vellum_shaper_shape(shaper, "\xE4\xB8\xAD\xE6\x96\x87", 6u, 24u, VELLUM_TEXT_LTR,
                                  &count, &error);
     if (glyphs == NULL || count != 2u || glyphs[0].glyph_index == 0u ||
-        glyphs[1].glyph_index == 0u || glyphs[0].cluster != 0u || glyphs[1].cluster != 3u) {
+        glyphs[1].glyph_index == 0u || glyphs[0].cluster != 0u || glyphs[1].cluster != 3u ||
+        glyphs[0].face_id != 2u || glyphs[1].face_id != 2u) {
         vellum_shaper_destroy(shaper);
         vellum_font_system_destroy(fonts);
         return false;
@@ -112,7 +113,8 @@ bool test_shape(void)
     glyphs = vellum_shaper_shape(shaper, arabic, sizeof(arabic) - 1u, 24u, VELLUM_TEXT_RTL, &count,
                                  &error);
     if (glyphs == NULL || count < 2u || glyphs[0].glyph_index == 0u ||
-        glyphs[count - 1u].glyph_index == 0u || glyphs[0].cluster <= glyphs[count - 1u].cluster) {
+        glyphs[count - 1u].glyph_index == 0u || glyphs[0].cluster <= glyphs[count - 1u].cluster ||
+        glyphs[0].face_id != 3u || glyphs[count - 1u].face_id != 3u) {
         vellum_shaper_destroy(shaper);
         vellum_font_system_destroy(fonts);
         return false;

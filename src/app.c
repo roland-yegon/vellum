@@ -20,6 +20,8 @@
 #include "vellum/graphics/draw_list.h"
 #include "vellum/graphics/font.h"
 #include "vellum/graphics/renderer.h"
+#include "vellum/graphics/shape.h"
+#include "vellum/graphics/text_layout.h"
 #include "vellum/platform/events.h"
 #include "vellum/platform/paths.h"
 #include "vellum/platform/signals.h"
@@ -42,12 +44,12 @@ struct VellumApp {
     VellumSettings settings;
     VellumTheme theme;
     VellumFontSystem *fonts;
+    VellumShaper *shaper;
     VellumTextureHandle atlas_texture;
     VellumFileWatcher *watcher;
     char settings_user_path[512];
     char theme_dark_user_path[512];
     char theme_light_user_path[512];
-    const VellumGlyph *sample_glyphs[10u];
     VellumTrace trace;
     uint32_t app_event_base;
     Uint64 last_log_tick;
@@ -184,21 +186,6 @@ static bool add_bundled_font(VellumApp *app, const char *name, VellumErrorInfo *
     return vellum_font_system_add_face(app->fonts, path, error) != VELLUM_FONT_NO_FACE;
 }
 
-static bool prepare_sample_glyphs(VellumApp *app, VellumErrorInfo *error)
-{
-    static const uint32_t faces[] = {1u, 1u, 1u, 2u, 2u, 3u, 3u, 3u, 3u, 3u};
-    static const uint32_t codepoints[] = {'A',     '!',     '=',     0x4E2Du, 0x6587u,
-                                          0x0645u, 0x0631u, 0x062Du, 0x0628u, 0x0627u};
-    for (size_t i = 0u; i < sizeof(faces) / sizeof(faces[0]); ++i) {
-        app->sample_glyphs[i] = vellum_font_system_glyph_for_char(
-            app->fonts, faces[i], codepoints[i], app->settings.font_size, error);
-        if (app->sample_glyphs[i] == NULL) {
-            return false;
-        }
-    }
-    return true;
-}
-
 static bool prepare_fonts(VellumApp *app, VellumErrorInfo *error)
 {
     app->fonts = vellum_font_system_create(ATLAS_PAGE_SIZE, error);
@@ -210,7 +197,8 @@ static bool prepare_fonts(VellumApp *app, VellumErrorInfo *error)
         !add_bundled_font(app, "NotoSansArabic-Variable.ttf", error)) {
         return false;
     }
-    if (!prepare_sample_glyphs(app, error)) {
+    app->shaper = vellum_shaper_create(app->fonts, error);
+    if (app->shaper == NULL) {
         return false;
     }
 
@@ -258,16 +246,8 @@ static bool setup_watcher(VellumApp *app, VellumErrorInfo *error)
 
 static void reload_config(VellumApp *app)
 {
-    const uint32_t old_font_size = app->settings.font_size;
     load_settings(app);
     load_theme(app, app->settings.theme);
-    if (app->settings.font_size != old_font_size) {
-        VellumErrorInfo error;
-        if (!prepare_sample_glyphs(app, &error)) {
-            VELLUM_LOG_ERROR("config", "could not reload glyphs: %s", vellum_error_message(&error));
-            return;
-        }
-    }
     VELLUM_LOG_INFO("config", "configuration reloaded (theme=%s, font size=%u)",
                     vellum_theme_name(&app->theme), app->settings.font_size);
     app->dirty = true;
@@ -288,12 +268,12 @@ VellumApp *vellum_app_create(VellumErrorInfo *error)
     app->settings = vellum_settings_default();
     app->theme = vellum_theme_dark();
     app->fonts = NULL;
+    app->shaper = NULL;
     app->atlas_texture = VELLUM_TEXTURE_NONE;
     app->watcher = NULL;
     app->settings_user_path[0] = '\0';
     app->theme_dark_user_path[0] = '\0';
     app->theme_light_user_path[0] = '\0';
-    memset(app->sample_glyphs, 0, sizeof(app->sample_glyphs));
     app->app_event_base = 0u;
     app->last_log_tick = 0u;
     app->width = 0;
@@ -430,18 +410,64 @@ static void process_events(VellumApp *app)
     }
 }
 
+static bool layout_demo_line(VellumApp *app, const char *text, float x, float baseline_y,
+                             float box_width, VellumThemeToken token, uint32_t font_size,
+                             VellumErrorInfo *error)
+{
+    VellumTextLayoutParams params;
+    memset(&params, 0, sizeof(params));
+    params.texture = app->atlas_texture;
+    params.color = vellum_theme_color(&app->theme, token);
+    params.x = x;
+    params.baseline_y = baseline_y;
+    params.box_width = box_width;
+    params.auto_direction = true; /* ICU first-strong detection drives RTL shaping. */
+    return vellum_text_layout_line(app->shaper, app->fonts, app->draw_list, &params, text,
+                                   strlen(text), font_size, NULL, error);
+}
+
+static bool build_demo_text(VellumApp *app, VellumErrorInfo *error)
+{
+    static const char title[] = "Vellum Text Foundation";
+    static const char subtitle[] = "ICU + HarfBuzz + FreeType + SDL3";
+    static const char latin_label[] = "LATIN";
+    static const char latin[] = "Hello, Vellum! != =>";
+    static const char cjk_label[] = "CJK";
+    static const char cjk[] = "\xE4\xB8\xAD\xE6\x96\x87\xE7\xBC\x96\xE8\xBE\x91\xE5\x99\xA8"
+                              "\xE6\xB5\x8B\xE8\xAF\x95";
+    static const char arabic_label[] = "ARABIC";
+    static const char arabic[] = "\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7\x20\xD8\xA8\xD8\xA7"
+                                 "\xD9\x84\xD8\xB9\xD8\xA7\xD9\x84\xD9\x85";
+    static const char fallback_label[] = "FALLBACK";
+    static const char fallback[] = "Vellum \xE4\xB8\xAD\xE6\x96\x87 editor";
+    static const char hint[] = "T: theme    Esc: quit";
+
+    const uint32_t size = app->settings.font_size;
+    const float label_x = 200.0f;
+    const float text_x = 340.0f;
+    const float text_box = 520.0f;
+
+    return layout_demo_line(app, title, label_x, 140.0f, 0.0f, VELLUM_THEME_ACCENT, size + 4u,
+                            error) &&
+           layout_demo_line(app, subtitle, label_x, 168.0f, 0.0f, VELLUM_THEME_TEXT, size, error) &&
+           layout_demo_line(app, latin_label, label_x, 228.0f, 0.0f, VELLUM_THEME_ACCENT, size,
+                            error) &&
+           layout_demo_line(app, latin, text_x, 228.0f, 0.0f, VELLUM_THEME_TEXT, size, error) &&
+           layout_demo_line(app, cjk_label, label_x, 276.0f, 0.0f, VELLUM_THEME_ACCENT, size,
+                            error) &&
+           layout_demo_line(app, cjk, text_x, 276.0f, 0.0f, VELLUM_THEME_TEXT, size, error) &&
+           layout_demo_line(app, arabic_label, label_x, 324.0f, 0.0f, VELLUM_THEME_ACCENT, size,
+                            error) &&
+           layout_demo_line(app, arabic, text_x, 324.0f, text_box, VELLUM_THEME_TEXT, size,
+                            error) &&
+           layout_demo_line(app, fallback_label, label_x, 372.0f, 0.0f, VELLUM_THEME_ACCENT, size,
+                            error) &&
+           layout_demo_line(app, fallback, text_x, 372.0f, 0.0f, VELLUM_THEME_TEXT, size, error) &&
+           layout_demo_line(app, hint, label_x, 432.0f, 0.0f, VELLUM_THEME_TEXT, size, error);
+}
+
 static bool build_scene(VellumApp *app, VellumErrorInfo *error)
 {
-    if (vellum_font_system_atlas_is_dirty(app->fonts)) {
-        uint32_t width = 0u;
-        uint32_t height = 0u;
-        const uint8_t *pixels = vellum_font_system_atlas_pixels(app->fonts, &width, &height);
-        if (!vellum_renderer_update_texture(app->renderer, app->atlas_texture, pixels, error)) {
-            return false;
-        }
-        vellum_font_system_atlas_clear_dirty(app->fonts);
-    }
-
     VellumDrawList *list = app->draw_list;
     vellum_draw_list_clear(list);
     vellum_draw_list_set_clear_color(list,
@@ -452,20 +478,24 @@ static bool build_scene(VellumApp *app, VellumErrorInfo *error)
                           vellum_theme_color(&app->theme, VELLUM_THEME_TAB_BAR));
     vellum_draw_list_rect(list, 180.0f, 80.0f, (float)(app->width - 180), 18.0f,
                           vellum_theme_color(&app->theme, VELLUM_THEME_TAB_BAR));
+    if (app->width > 220) {
+        vellum_draw_list_rect(list, 200.0f, 190.0f, (float)(app->width - 220), 1.0f,
+                              vellum_theme_color(&app->theme, VELLUM_THEME_TAB_BAR));
+    }
 
-    for (size_t i = 0u; i < sizeof(app->sample_glyphs) / sizeof(app->sample_glyphs[0]); ++i) {
-        const VellumGlyph *glyph = app->sample_glyphs[i];
-        if (glyph == NULL) {
-            continue;
-        }
-        const VellumColor tint = i % 3u == 0u ? vellum_theme_color(&app->theme, VELLUM_THEME_ACCENT)
-                                              : vellum_theme_color(&app->theme, VELLUM_THEME_TEXT);
-        if (!vellum_draw_list_textured_quad(list, app->atlas_texture,
-                                            196.0f + (float)i * 20.0f + glyph->bearing_x,
-                                            60.0f - glyph->bearing_y, glyph->width, glyph->height,
-                                            glyph->u0, glyph->v0, glyph->u1, glyph->v1, tint)) {
+    /* Shaping and rasterizing happens first: it may add glyphs to the atlas, so the
+     * texture upload must follow it but still precede the renderer submission. */
+    if (!build_demo_text(app, error)) {
+        return false;
+    }
+    if (vellum_font_system_atlas_is_dirty(app->fonts)) {
+        uint32_t width = 0u;
+        uint32_t height = 0u;
+        const uint8_t *pixels = vellum_font_system_atlas_pixels(app->fonts, &width, &height);
+        if (!vellum_renderer_update_texture(app->renderer, app->atlas_texture, pixels, error)) {
             return false;
         }
+        vellum_font_system_atlas_clear_dirty(app->fonts);
     }
     return true;
 }
@@ -550,6 +580,9 @@ void vellum_app_destroy(VellumApp *app)
     }
     if (app->renderer != NULL) {
         vellum_renderer_destroy(app->renderer);
+    }
+    if (app->shaper != NULL) {
+        vellum_shaper_destroy(app->shaper);
     }
     if (app->fonts != NULL) {
         vellum_font_system_destroy(app->fonts);

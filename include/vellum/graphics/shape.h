@@ -20,6 +20,7 @@ extern "C" {
 typedef struct VellumShaper VellumShaper;
 
 typedef struct {
+    uint32_t face_id; /* Face chosen for this run by per-codepoint font fallback. */
     uint32_t glyph_index;
     uint32_t cluster;
     float x_advance;

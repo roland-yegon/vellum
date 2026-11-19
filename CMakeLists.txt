@@ -86,6 +86,7 @@ add_library(vellum_graphics STATIC
     src/graphics/draw_list.c
     src/graphics/font.c
     src/graphics/shape.c
+    src/graphics/text_layout.c
     src/graphics/renderer_sdl.c)
 target_link_libraries(vellum_graphics PUBLIC
     vellum_core
@@ -135,6 +136,7 @@ add_executable(vellum_unit_tests
     tests/unit/test_unicode.c
     tests/unit/test_font.c
     tests/unit/test_shape.c
+    tests/unit/test_layout.c
     tests/unit/test_config.c
     tests/unit/test_theme.c
     tests/unit/test_paths.c)

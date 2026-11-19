@@ -233,18 +233,25 @@ Owned by `text/` + `graphics/`, independent of editor logic:
 5. **Line caching:** shaped/laid-out lines are cached; only dirty lines are re-shaped.
    Scrolling reuses cached geometry and only builds newly visible lines.
 
-Phase 2 status: steps 1–3 are implemented. ICU 78.3 powers `vellum_text` UTF-8
+Phase 2 status: steps 1–4 are implemented. ICU 78.3 powers `vellum_text` UTF-8
 validation, grapheme boundaries, and first-strong direction. FreeType powers the RGBA
 atlas and glyph cache in `src/graphics/font.c`, with pinned fonts bundled per
 [ADR-005](architecture/ADR-005-bundled-multilingual-fonts.md). HarfBuzz 15.1.0 shapes
 runs in `src/graphics/shape.c` with fallback, `calt`/`liga`, UTF-8 cluster offsets,
-and a byte-verified cache. The three system libraries and their licences are recorded
-in [ADR-006](architecture/ADR-006-icu-freetype-harfbuzz-text-pipeline.md). The renderer
+and a byte-verified cache; each shaped glyph records the face chosen for its run so
+raster data can be resolved per glyph. The three system libraries and their licences
+are recorded in
+[ADR-006](architecture/ADR-006-icu-freetype-harfbuzz-text-pipeline.md). The renderer
 owns stable texture handles, batches geometry per texture, and uploads the RGBA atlas
-when the font system reports it dirty. Typed settings and semantic light/dark theme
-tokens load from `config/` with strict parse errors and compiled-in fallbacks; the app
-uses those tokens for every scene colour. Line layout, widgets, and the full demo
-screen are the next increments.
+when the font system reports it dirty. `vellum_text_layout_line()` in
+`src/graphics/text_layout.c` positions one single-line paragraph into draw-list quads:
+ICU detects the base direction, LTR advances from the box's left edge, and RTL is
+placed from its right edge because HarfBuzz 15 reports visual-order glyphs with positive
+advances. Typed settings and semantic light/dark theme tokens load from `config/` with
+strict parse errors and compiled-in fallbacks; the app uses those tokens for every
+scene colour and renders a static multilingual demo screen (Latin, CJK, Arabic, mixed
+fallback) through the layout API. Line caching, widgets, and panels are the next
+increments.
 
 `SDL3_ttf` is **not** part of the core pipeline: we use FreeType/HarfBuzz directly to
 control shaping and caching. The Makefile that referenced it was removed in Phase 1,
@@ -450,7 +457,7 @@ below is a non-normative summary; the ADR is authoritative wherever both cover a
 
 ---
 
-**Next step:** continue Phase 2 (Native UI and text foundation) with widgets/panels
-and the multilingual demo screen. ICU, FreeType, HarfBuzz, renderer textures, atlas
-upload, typed config/themes, and live config reload are implemented and verified; see
-`ROADMAP.md`.
+**Next step:** continue Phase 2 (Native UI and text foundation) with the widgets/panels
+foundation. ICU, FreeType, HarfBuzz, renderer textures, atlas upload, single-line text
+layout, the multilingual demo screen, typed config/themes, and live config reload are
+implemented and verified; see `ROADMAP.md`.

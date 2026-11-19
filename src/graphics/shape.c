@@ -341,6 +341,7 @@ static bool shape_segment(VellumShaper *shaper, const TextSegment *segment, cons
     bool ok = true;
     for (unsigned int i = 0u; i < count && ok; ++i) {
         VellumShapedGlyph glyph;
+        glyph.face_id = segment->face_id;
         glyph.glyph_index = infos[i].codepoint;
         glyph.cluster = infos[i].cluster + (uint32_t)segment->start;
         glyph.x_advance = (float)positions[i].x_advance / 64.0f;

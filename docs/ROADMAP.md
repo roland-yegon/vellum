@@ -204,15 +204,31 @@ Implemented increments, each built and tested before proceeding:
   shipped defaults: settings overlay key-by-key, while a user theme fully replaces its
   shipped counterpart. A malformed override is reported and ignored, keeping the last
   valid values. `VellumFileWatcher` polls file content hashes on one fixed worker and
-  posts an app event on change; the main thread reloads config and regenerates glyphs
-  when the font size changes. `T` persists the theme choice to the user settings file.
+  posts an app event on change; the main thread reloads config, and subsequent layout
+  uses the new font size. `T` persists the theme choice to the user settings file.
   Unit tests cover path composition and layering; an integration test verifies that a
   file rewrite produces an app event, and the app-events test covers the reload message.
 - Debug, release, and bench presets build and pass `ctest` (unit, app events, renderer
   textures, file watcher); debug runs under ASan/UBSan, and `clang-format --dry-run
   --Werror` is clean.
 
-Remaining Phase 2 work: widgets/panels and the multilingual demo screen.
+- Single-line layout is implemented in `vellum_graphics`: `vellum_text_layout_line()`
+  shapes a paragraph, resolves each glyph's face through the shaper's recorded
+  `face_id`, and appends positioned atlas quads. HarfBuzz 15 reports visual-order RTL
+  glyphs with positive advances, so RTL lines are placed from the right edge of the
+  text box; ICU first-strong detection selects the direction automatically. Unit tests
+  cover LTR order, RTL order and right alignment, whitespace, mixed-script face
+  fallback, empty input, and invalid arguments.
+- The app owns a `VellumShaper` and renders a static multilingual demo screen: title,
+  subtitle, Latin (including ligature samples), CJK, Arabic, mixed Latin/CJK fallback,
+  and a hint line, all coloured through theme tokens. Layout runs before the dirty-atlas
+  upload so newly rasterized glyphs reach the GPU in the same frame. Debug, release,
+  and bench builds plus CTest, `clang-format --dry-run --Werror`, and a real-window
+  smoke test pass with the demo active.
+
+Remaining Phase 2 work: the widgets/panels foundation (retained widget tree, constraint
+layout, focus/hit-testing, and resizable panels), plus the outstanding exit-criteria
+evidence: DPI/scale re-rasterization, the 1,000-glyph frame-cost check, and line caching.
 
 ---
 
@@ -449,6 +465,7 @@ To keep the project honest, these are explicitly **not** early work:
 ## 4. Immediate next action
 
 Phase 1 is complete and verified. In Phase 2, ICU validation/graphemes, the FreeType
-atlas, HarfBuzz shaping, renderer texture support, atlas upload, typed config/themes, and
-user overrides with live reload are complete and tested. Next add widgets/panels and the
-multilingual demo screen.
+atlas, HarfBuzz shaping, renderer texture support, atlas upload, single-line text layout,
+the multilingual demo screen, typed config/themes, and user overrides with live reload
+are complete and tested. Next start the widgets/panels foundation; it is a major
+architectural step, so agree on its design before implementing it.

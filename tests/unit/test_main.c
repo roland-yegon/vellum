@@ -16,11 +16,13 @@ int main(void)
     vellum_log_init();
     vellum_log_set_level(VELLUM_LOG_ERROR);
 
-    const TestFunction tests[] = {test_error, test_log,    test_arena,     test_array,   test_queue,
-                                  test_trace, test_events, test_draw_list, test_unicode, test_font,
-                                  test_shape, test_config, test_theme,     test_paths};
-    const char *names[] = {"error",     "log",     "arena", "array", "queue",  "trace", "events",
-                           "draw_list", "unicode", "font",  "shape", "config", "theme", "paths"};
+    const TestFunction tests[] = {test_error,   test_log,   test_arena,  test_array,
+                                  test_queue,   test_trace, test_events, test_draw_list,
+                                  test_unicode, test_font,  test_shape,  test_layout,
+                                  test_config,  test_theme, test_paths};
+    const char *names[] = {"error", "log",    "arena",     "array",   "queue",
+                           "trace", "events", "draw_list", "unicode", "font",
+                           "shape", "layout", "config",    "theme",   "paths"};
     const size_t count = sizeof(tests) / sizeof(tests[0]);
 
     size_t passed = 0u;
