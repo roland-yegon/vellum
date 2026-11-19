@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ * Copyright (C) 2026 Roland Yegon
+ */
+
 #define _POSIX_C_SOURCE 200809L
 
 #include "vellum/platform/signals.h"

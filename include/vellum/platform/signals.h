@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ * Copyright (C) 2026 Roland Yegon
+ */
+
 #ifndef VELLUM_PLATFORM_SIGNALS_H
 #define VELLUM_PLATFORM_SIGNALS_H
 

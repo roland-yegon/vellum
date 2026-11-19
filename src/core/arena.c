@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ * Copyright (C) 2026 Roland Yegon
+ */
+
 #include "vellum/core/arena.h"
 
 #include <stdint.h>

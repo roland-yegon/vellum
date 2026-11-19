@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ * Copyright (C) 2026 Roland Yegon
+ */
+
 #include <SDL3/SDL.h>
 #include <stdbool.h>
 #include <string.h>

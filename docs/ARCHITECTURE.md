@@ -233,9 +233,9 @@ Owned by `text/` + `graphics/`, independent of editor logic:
    Scrolling reuses cached geometry and only builds newly visible lines.
 
 `SDL3_ttf` is **not** part of the core pipeline: we use FreeType/HarfBuzz directly to
-control shaping and caching. It remains linked temporarily because the current
-Makefile references it; it should be removed from `LDLIBS` once the custom pipeline is
-live, unless a small debug-label path finds a use for it.
+control shaping and caching. The Makefile that referenced it was removed in Phase 1,
+and the CMake targets do not link SDL3_ttf. It may be reconsidered later only for a
+small debug-label path with a concrete need.
 
 ### 7.5 Text buffer — decision
 
@@ -351,22 +351,19 @@ A **retained widget tree with immediate-mode draw-list emission**:
 
 ## 9. Build system
 
-Migrate from the current hand-written Makefile to **CMake + Ninja + Clang**, keeping a
-thin `make` wrapper for developer ergonomics if desired.
+The build is **CMake + Ninja + Clang**. The Makefile was removed in Phase 1 at the
+user's request; CMake presets are the only supported path.
 
-- Top-level `CMakeLists.txt` with `add_subdirectory` per subsystem (static libraries)
-  and a small `src/main.c` executable linking them.
-- Presets: `debug` (ASan/UBSan, `-O0 -g`), `release` (`-O2`/`-O3`, `NDEBUG`),
-  `bench` (release + tracing counters).
-- Dependencies via `find_package(SDL3 CONFIG REQUIRED)` and `pkg_check_modules` for
-  `freetype2`, `harfbuzz`, `icu-uc`, `icu-i18n`. Note that CMake's package is `SDL3`
+- Top-level `CMakeLists.txt` defines static libraries per subsystem and a small
+  `src/main.c` executable. The phase currently implemented has `vellum_core`,
+  `vellum_graphics`, `vellum_platform`, and `vellum_app`.
+- Presets in `CMakePresets.json`: `debug` (ASan/UBSan, `-O0 -g`, warnings as errors),
+  `release` (optimized, warnings as errors), and `bench` (optimized with debug info).
+- Dependencies via `find_package(SDL3 CONFIG REQUIRED)`, with `pkg_check_modules` for
+  FreeType, HarfBuzz, and ICU as each subsystem lands. CMake's package is `SDL3`
   while pkg-config's module is `sdl3` — both were verified present.
-- Sanitizers on Linux by default in debug; LTO considered for release after
+- Sanitizers are enabled by the debug preset; LTO is considered for release only after
   measurement.
-- The existing Makefile's debug/release/sanitizer behaviour and dep tracking are
-  preserved in spirit; its `CFLAGS` should change from C23 to `-std=c17`, `CC` from
-  `gcc` to `clang`, and `LDLIBS` should use `pkg-config --libs sdl3` rather than a
-  hard-coded `-lSDL3` — **proposed changes, not yet applied.**
 
 ## 10. Initial performance targets
 
@@ -424,8 +421,10 @@ below is a non-normative summary; the ADR is authoritative wherever both cover a
 | yyjson for JSON, pinned and vendored | Fast, MIT, precise errors, single `.h`/`.c` | [ADR-001](architecture/ADR-001-json-parsing-yyjson.md) |
 | libtsm first for terminal emulation, in-house fallback | State-machine-only C library, no UI coupling; gated evaluation | [ADR-002](architecture/ADR-002-terminal-emulation-libtsm-first.md) |
 | External tools for Git/search/build | Avoid reimplementing mature, optimized tools | this document |
+| Vellum itself is GPL-2.0-only; third-party components keep their own terms | Clear downstream obligations and preserves upstream notices | `LICENSE`, `README.md` |
 
 ---
 
-**Next step:** begin Phase 1 (Foundation) on instruction. No implementation changes
-have been made; only documentation has been added or updated.
+**Next step:** continue Phase 2 (Native UI and text foundation), beginning with ICU
+UTF-8 and grapheme-boundary primitives, then the FreeType/HarfBuzz pipeline. Phase 1
+is implemented and verified; see `ROADMAP.md`.

@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ * Copyright (C) 2026 Roland Yegon
+ */
+
 #include "vellum/app.h"
 #include "vellum/core/error.h"
 #include "vellum/core/log.h"

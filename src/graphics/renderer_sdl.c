@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ * Copyright (C) 2026 Roland Yegon
+ */
+
 #include "vellum/graphics/renderer.h"
 
 #include <SDL3/SDL.h>

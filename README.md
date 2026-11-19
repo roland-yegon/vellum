@@ -56,4 +56,6 @@ integration tests, and the benchmark skeleton. See
 
 ## Licence
 
-See [LICENSE](LICENSE).
+Vellum is free software licensed under **GPL-2.0-only**. See [LICENSE](LICENSE) for the
+full text. Third-party components keep their own licences; their notices are preserved
+alongside any vendored sources.

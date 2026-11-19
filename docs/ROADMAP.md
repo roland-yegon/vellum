@@ -1,7 +1,8 @@
 # Vellum — Development Roadmap
 
-> **Status:** Proposed. Companion to `docs/ARCHITECTURE.md`. Written 2026-11-19 after
-> inspecting the repository and verifying the installed toolchain. Awaiting approval.
+> **Status:** Approved baseline. Companion to `docs/ARCHITECTURE.md`. Written
+> 2026-11-19 after inspecting the repository and verifying the installed toolchain;
+> Phase 1 is complete and Phase 2 is in progress.
 >
 > This is a plan of *testable increments*, not a wish list. A phase is complete only
 > when its exit criteria pass. If a phase cannot meet its exit criteria, we stop and
@@ -151,6 +152,11 @@ multilingual code sample rendered with shaping/ligatures.
 
 **Depends on:** M1. **Risks:** HarfBuzz/FreeType/ICU integration order — implement ICU
 first (cheap), then FreeType atlas, then HarfBuzz, testing each in isolation.
+
+### Phase 2 status — in progress
+
+No Phase 2 code is committed yet. Vellum's licence was switched from MIT to
+GPL-2.0-only before implementation began; third-party components keep their own terms.
 
 ---
 
@@ -386,6 +392,6 @@ To keep the project honest, these are explicitly **not** early work:
 
 ## 4. Immediate next action
 
-The architecture and these decisions are approved. On instruction, begin **Phase 1**
-with the CMake/Ninja/Clang migration and SDL3 window/event loop, then build and test
-before touching any UI or buffer code. No implementation work has been done yet.
+Phase 1 is complete and verified. Begin **Phase 2** with ICU UTF-8 validation and
+grapheme-boundary tests, then build and test before adding the FreeType atlas,
+HarfBuzz shaping, UI widgets, and the multilingual demo screen.

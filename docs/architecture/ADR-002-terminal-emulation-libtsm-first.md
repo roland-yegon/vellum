@@ -82,9 +82,10 @@ Evidence gathered before this decision (primary sources):
 - Release notes show active feature work: OSC 4/10/11 colour queries and word selection
   (4.3.0), shift-arrow keys and Meson build (4.2.0), configureable backspace, mouse
   support, scrollback line count/position getters, and macOS build fixes (4.1.0).
-- Licence: MIT for the project, with third-party components (CCAN hash table, a
-  `wcwidth` port, and UCS-4→UTF-8 code from terminology) that carry their own notices.
-  If vendored, all notices must be preserved.
+- Licence: libtsm is MIT, with third-party components (CCAN hash table, a `wcwidth`
+  port, and UCS-4→UTF-8 code from terminology) that carry their own notices. Those
+  third-party terms are independent of Vellum, which is GPL-2.0-only. If libtsm is
+  vendored, all upstream notices must be preserved.
 - Not installed on the development host. Adoption will require vendoring or an
   explicit build-time dependency; either way the revision must be pinned.
 

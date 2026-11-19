@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ * Copyright (C) 2026 Roland Yegon
+ */
+
 #ifndef VELLUM_TESTS_UNIT_TESTS_H
 #define VELLUM_TESTS_UNIT_TESTS_H
 
