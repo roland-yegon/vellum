@@ -24,6 +24,7 @@ struct VellumArena {
     size_t total_allocated;
     size_t total_used;
     size_t allocations;
+    uint64_t resets;
 };
 
 static bool valid_alignment(size_t alignment)
@@ -100,6 +101,7 @@ VellumArena *vellum_arena_create(size_t chunk_size)
     arena->total_allocated = chunk_size;
     arena->total_used = 0u;
     arena->allocations = 0u;
+    arena->resets = 0u;
     return arena;
 }
 
@@ -187,6 +189,11 @@ size_t vellum_arena_allocation_count(const VellumArena *arena)
     return arena == NULL ? 0u : arena->allocations;
 }
 
+uint64_t vellum_arena_reset_count(const VellumArena *arena)
+{
+    return arena == NULL ? 0u : arena->resets;
+}
+
 void vellum_arena_reset(VellumArena *arena)
 {
     if (arena == NULL) {
@@ -197,6 +204,7 @@ void vellum_arena_reset(VellumArena *arena)
     }
     arena->total_used = 0u;
     arena->allocations = 0u;
+    ++arena->resets;
 }
 
 void vellum_arena_destroy(VellumArena *arena)

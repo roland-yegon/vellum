@@ -46,19 +46,26 @@ Tests and benchmarks:
 
 ```sh
 ctest --preset debug --output-on-failure
-./build/bench/vellum_bench_draw_list
+./build/bench/vellum_bench_draw_list          # draw-list microbenchmark
+cmake --preset release && cmake --build --preset release
+./build/release/vellum_bench_text_frame       # real text-pipeline benchmark
 ```
 
-The current benchmark measures construction of a 200,000-quad draw list. It is a
-**skeleton**, not the full 200,000-glyph rendering benchmark specified in
-[ADR-004](docs/architecture/ADR-004-rendering-sdl3-first-gpu-conditional.md); no
-performance conclusion should be drawn from it yet.
+`vellum_bench_draw_list` is a skeleton microbenchmark for draw-list construction.
+`vellum_bench_text_frame` is the repeatable benchmark required by
+[ADR-004](docs/architecture/ADR-004-rendering-sdl3-first-gpu-conditional.md): it
+runs the real shaping, line-cache, atlas, draw-list, and SDL render pipeline over
+a 1,000-glyph editor scene and a 200,000-glyph stress scene, with a fixed
+configuration printed in its output. Set `VELLUM_BENCH_HEADLESS=1` for a CI smoke
+run using SDL's dummy/software drivers; those numbers are not performance
+evidence. Recorded release results and interpretation are in
+[`docs/benchmarks/2026-11-19-text-frame.md`](docs/benchmarks/2026-11-19-text-frame.md).
 
 ## Current state
 
 Phase 1 (Foundation) is implemented: C17/CMake/Ninja build, core utilities, SDL3
 window and event loop, draw list plus a batched SDL Render backend, unit tests,
-integration tests, and the benchmark skeleton. Phase 2 is in progress: ICU-backed
+integration tests, and the benchmark skeleton. Phase 2 is complete: ICU-backed
 UTF-8 validation and grapheme boundaries, a FreeType glyph atlas with pinned
 multilingual fonts, HarfBuzz run shaping with fallback and a cache, renderer-owned
 textures with per-texture geometry batching, and glyph-atlas upload are in place.
@@ -72,8 +79,18 @@ the app dispatches input to the tree and relayouts on resize or config changes. 
 yyjson (0.13.0) powers typed settings and semantic light/dark theme tokens loaded from
 `config/` with strict parse errors and compiled-in fallbacks. User overrides in the
 preferences directory layer over the shipped defaults and reload live via a file
-watcher on a fixed worker thread.
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence.
+watcher on a fixed worker thread. A bounded line cache stores fully laid-out
+single lines keyed by text, pixel size, direction, and box width, so unchanged
+lines reuse their geometry. `SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED` is translated
+into app input; the app re-queries the window scale, recomputes the effective text
+pixel size, and re-rasterizes glyphs at the new size (verified in a real window:
+scale 1.00 → 2.00, pixel size 14 → 28, atlas re-upload before the first frame).
+The release text benchmark measures 1.12–2.22 ms mean per frame for 1,000 glyphs
+and documents the 200,000-glyph stress result and the no-GPU-change conclusion;
+per-frame arena usage is stable with one reset per frame.
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence and
+[`docs/benchmarks/2026-11-19-text-frame.md`](docs/benchmarks/2026-11-19-text-frame.md)
+for the recorded benchmark data.
 
 ## Architecture
 

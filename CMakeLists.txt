@@ -172,6 +172,18 @@ add_executable(vellum_bench_draw_list
 target_include_directories(vellum_bench_draw_list PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(vellum_bench_draw_list PRIVATE vellum_graphics vellum_core vellum_build_flags)
 
+add_executable(vellum_bench_text_frame
+    tests/benchmarks/bench_text_main.c
+    tests/benchmarks/bench_text_frame.c)
+target_include_directories(vellum_bench_text_frame PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(vellum_bench_text_frame PRIVATE
+    vellum_platform
+    vellum_graphics
+    vellum_config
+    vellum_core
+    vellum_build_flags
+    m)
+
 add_executable(vellum_integration_tests tests/integration/test_app_events.c)
 target_link_libraries(vellum_integration_tests PRIVATE vellum_app vellum_build_flags)
 add_test(NAME app_events COMMAND vellum_integration_tests)

@@ -77,8 +77,10 @@ Verification before this decision:
 ## Consequences
 
 - The benchmark harness and frame trace counters are part of early work (the Phase 1
-  benchmark skeleton) and must be kept runnable; a claimed performance result without
-  a recorded benchmark configuration is not accepted.
+  draw-list skeleton plus the Phase 2 `vellum_bench_text_frame` real-pipeline
+  benchmark) and must be kept runnable; a claimed performance result without a
+  recorded benchmark configuration is not accepted. Recorded runs live under
+  `docs/benchmarks/`.
 - The draw-list interface is intentionally narrow: clear/rect/textured-quad batch/
   line/scissor/submit. UI code emits draw lists and never calls SDL rendering
   functions directly.
@@ -98,3 +100,30 @@ Verification before this decision:
 - SDL3 deprecates or removes the Render API path used here.
 - Any revisit must start with a profiling report and a superseding ADR; the threshold
   exists to prevent architecture changes based on intuition.
+
+## Measured evidence — 2026-11-19 (Phase 2 exit)
+
+`vellum_bench_text_frame` was run three times in release mode with the fixed
+configuration printed by the harness and recorded in
+[`docs/benchmarks/2026-11-19-text-frame.md`](../benchmarks/2026-11-19-text-frame.md).
+Environment: SDL 3.4.20, renderer `opengl` (SDL-selected), Linux, 1280x720 viewport,
+1184x636 editor, JetBrains Mono 14 px, scale 1.00, dark theme, VSync off, 5 warmup
+and 30 measured frames.
+
+| Workload | p50 (ms), 3 runs | p95 (ms), 3 runs | Mean (ms), 3 runs |
+| --- | --- | --- | --- |
+| 1,000 glyphs | 0.744 / 1.079 / 0.697 | 3.468 / 9.623 / 5.048 | 1.119 / 2.216 / 1.416 |
+| 200,000 glyphs | 23.732 / 23.797 / 22.534 | 26.746 / 33.143 / 25.109 | 24.031 / 24.501 / 22.903 |
+
+The 1,000-glyph scene is under the ~8 ms investigation threshold on p50 and mean;
+the single p95 outlier (9.623 ms) coincides with a render-submit spike, not with
+layout (0.332 ms maximum). The 200,000-glyph stress scene exceeds the threshold, so
+the **profile-first** clause was applied. Profiling counters in the harness show
+~27% of the mean frame in arena/scene layout and ~73% in render submit, with **two
+SDL geometry calls per frame** in both workloads, zero line-cache evictions, one
+atlas upload, and one arena reset per rendered frame (35 resets for 35 frames).
+The cost is CPU-side geometry construction and quad overdraw in the viewport, not
+draw-call count, atlas churn, shaping, or allocation. A custom GPU backend would
+not remove those measured costs, so **no backend change is proposed**. A future
+revisit must first profile dirty-region rendering and overdraw, then follow the
+superseding-ADR process above.

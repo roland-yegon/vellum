@@ -13,7 +13,8 @@
 bool test_arena(void)
 {
     VellumArena *arena = vellum_arena_create(128u);
-    if (arena == NULL || vellum_arena_used(arena) != 0u) {
+    if (arena == NULL || vellum_arena_used(arena) != 0u || vellum_arena_reset_count(arena) != 0u ||
+        vellum_arena_reset_count(NULL) != 0u) {
         return false;
     }
 
@@ -64,10 +65,17 @@ bool test_arena(void)
     }
 
     vellum_arena_reset(arena);
-    if (vellum_arena_used(arena) != 0u || vellum_arena_allocation_count(arena) != 0u) {
+    if (vellum_arena_used(arena) != 0u || vellum_arena_allocation_count(arena) != 0u ||
+        vellum_arena_reset_count(arena) != 1u) {
         vellum_arena_destroy(arena);
         return false;
     }
+    vellum_arena_reset(arena);
+    if (vellum_arena_reset_count(arena) != 2u) {
+        vellum_arena_destroy(arena);
+        return false;
+    }
+    vellum_arena_reset(NULL);
 
     vellum_arena_destroy(arena);
     return true;

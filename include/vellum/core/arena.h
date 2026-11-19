@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,6 +25,8 @@ char *vellum_arena_strdup(VellumArena *arena, const char *text);
 size_t vellum_arena_used(const VellumArena *arena);
 size_t vellum_arena_capacity(const VellumArena *arena);
 size_t vellum_arena_allocation_count(const VellumArena *arena);
+/* Lifetime number of resets; paired with the count above this shows per-frame churn. */
+uint64_t vellum_arena_reset_count(const VellumArena *arena);
 void vellum_arena_reset(VellumArena *arena);
 void vellum_arena_destroy(VellumArena *arena);
 

@@ -214,7 +214,13 @@ Evidence and rationale:
   GPU backend implements the same interface with one instanced draw; no UI code changes.
 
 This satisfies "do not introduce an unnecessarily complicated rendering architecture"
-while preserving a credible high-performance path.
+while preserving a credible high-performance path. The first release measurement
+confirms the premise: the 1,000-glyph scene uses two SDL geometry calls and stays at
+1.12–2.22 ms mean/frame, while the 200,000-glyph stress scene also needs only two
+calls. Its 22.9–24.5 ms mean is CPU-side geometry construction and overdraw (~73%
+render submit, ~27% layout), not a batching failure, so ADR-004's profile-first rule
+applies before any GPU work. Full configuration and distributions:
+[`benchmarks/2026-11-19-text-frame.md`](benchmarks/2026-11-19-text-frame.md).
 
 ### 7.4 Text and font pipeline
 
@@ -233,7 +239,7 @@ Owned by `text/` + `graphics/`, independent of editor logic:
 5. **Line caching:** shaped/laid-out lines are cached; only dirty lines are re-shaped.
    Scrolling reuses cached geometry and only builds newly visible lines.
 
-Phase 2 status: steps 1–4 are implemented. ICU 78.3 powers `vellum_text` UTF-8
+Phase 2 status: steps 1–5 are implemented. ICU 78.3 powers `vellum_text` UTF-8
 validation, grapheme boundaries, and first-strong direction. FreeType powers the RGBA
 atlas and glyph cache in `src/graphics/font.c`, with pinned fonts bundled per
 [ADR-005](architecture/ADR-005-bundled-multilingual-fonts.md). HarfBuzz 15.1.0 shapes
@@ -251,7 +257,14 @@ advances. Typed settings and semantic light/dark theme tokens load from `config/
 strict parse errors and compiled-in fallbacks; the app uses those tokens for every
 scene colour and renders a static multilingual demo screen (Latin, CJK, Arabic, mixed
 fallback) through the layout API. The retained widget tree and concrete panels are now
-implemented (§7.7); line caching is the next text increment.
+implemented (§7.7). Step 5 is a bounded `VellumLineCache` of fully laid-out single
+lines, keyed by text bytes, pixel size, effective direction, and box width; unchanged
+lines reuse their quads, and a display-scale change changes the pixel-size key so
+glyphs are re-rasterized instead of reused at a stale size. `vellum_app_set_display_scale()`
+also allows tests and settings to drive the scale; the SDL event path queries
+`SDL_GetWindowDisplayScale()` because SDL supplies no value in the event itself.
+The 1,000-glyph frame cost, atlas hit rate, and arena-churn evidence are recorded in
+[`benchmarks/2026-11-19-text-frame.md`](benchmarks/2026-11-19-text-frame.md).
 
 `SDL3_ttf` is **not** part of the core pipeline: we use FreeType/HarfBuzz directly to
 control shaping and caching. The Makefile that referenced it was removed in Phase 1,
@@ -432,6 +445,14 @@ Instrumentation is built in from Phase 1 (a lightweight `vellum_trace` with coun
 and scoped timers, compiled out in release unless `VELLUM_TRACE` is set). Profiling
 tools: `perf`, Clang sanitizers, RenderDoc only if a GPU backend is added.
 
+Measured so far: the 1,000-glyph editor scene (Phase 2 exit criterion) has a p50 of
+0.70–1.08 ms and a mean of 1.12–2.22 ms across three release runs, within the
+≤ 4 ms UI + text budget, with one arena reset per frame and no cache evictions. The
+200,000-glyph stress scene is not a steady-state editor target and exceeds ADR-004's
+8 ms investigation threshold; its phase breakdown and the decision not to change
+rendering architecture are recorded in
+[`benchmarks/2026-11-19-text-frame.md`](benchmarks/2026-11-19-text-frame.md).
+
 ## 11. Remaining open questions and risks
 
 Resolved decisions are recorded in [`architecture/`](architecture/README.md) and are
@@ -469,8 +490,11 @@ below is a non-normative summary; the ADR is authoritative wherever both cover a
 
 ---
 
-**Next step:** continue Phase 2 (Native UI and text foundation) with the outstanding
-exit-criteria evidence: DPI/scale re-rasterization, the 1,000-glyph frame-cost check,
-and line caching. ICU, FreeType, HarfBuzz, renderer textures, atlas upload, single-line
-text layout, the multilingual demo screen, the retained widget tree and panels, typed
-config/themes, and live config reload are implemented and verified; see `ROADMAP.md`.
+**Next step:** Phase 2 (Native UI and text foundation) is complete, including its
+exit evidence for DPI/scale re-rasterization, the 1,000-glyph frame cost, and line
+caching. ICU, FreeType, HarfBuzz, renderer textures, atlas upload, single-line text
+layout, the line cache, the multilingual demo screen, the retained widget tree and
+panels, typed config/themes, live config reload, and the text-frame benchmark are
+implemented and verified; see `ROADMAP.md` and
+[`benchmarks/2026-11-19-text-frame.md`](benchmarks/2026-11-19-text-frame.md). The next
+increment is Phase 3 (the standalone editing buffer).

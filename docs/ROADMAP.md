@@ -153,7 +153,7 @@ multilingual code sample rendered with shaping/ligatures.
 **Depends on:** M1. **Risks:** HarfBuzz/FreeType/ICU integration order — implement ICU
 first (cheap), then FreeType atlas, then HarfBuzz, testing each in isolation.
 
-### Phase 2 status — in progress
+### Phase 2 status — complete
 
 Vellum's licence was switched from MIT to GPL-2.0-only before implementation began;
 third-party components keep their own terms.
@@ -240,8 +240,49 @@ Implemented increments, each built and tested before proceeding:
   splitter clamping to `VELLUM_UI_SIDEBAR_MIN`/`MAX`, tab switching via paint colours,
   the activity toggle, and paint error handling.
 
-Remaining Phase 2 work: the outstanding exit-criteria evidence — DPI/scale
-re-rasterization, the 1,000-glyph frame-cost check, and line caching.
+- The bounded line cache (`src/graphics/line_cache.c`) stores fully laid-out
+  single-line quads keyed by text bytes, pixel size, effective direction, box width,
+  and face count. Repeated frames reuse geometry; the benchmark reaches 1,360 hits
+  and 40 misses (the 40 distinct lines) with zero evictions.
+- DPI/scale changes are handled end to end: SDL's
+  `SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED` becomes `VELLUM_INPUT_SCALE_CHANGED`, the
+  app re-queries `SDL_GetWindowDisplayScale()` (SDL sends no value), recomputes the
+  effective pixel size, and re-rasterizes glyphs. A real-window smoke test showed
+  scale 1.00 → 2.00, pixel size 14 → 28, and atlas upload #1 with 86 rasterizations
+  before the first frame. `vellum_app_set_display_scale()` covers tests/settings, and
+  the pixel size is recomputed on settings reload.
+
+#### Phase 2 exit evidence
+
+All Phase 2 exit criteria are met:
+
+- **Text and bidi:** the demo renders Latin (including `!=`/`=>` ligature samples),
+  CJK, an Arabic phrase laid out right-to-left from the box's right edge, and
+  mixed-script fallback. Font tests assert glyph coverage for accented Latin, CJK,
+  and Arabic with all three pinned fonts; layout tests cover LTR/RTL order and
+  right alignment, whitespace, fallback, empty input, and invalid arguments.
+- **Resize and scale:** resizing relayouts the retained widget tree (unit tests check
+  exact geometry at 1000x700 and splitter clamping); the scale evidence above shows
+  atlas re-rasterization rather than stale glyph geometry.
+- **Theme:** dark/light switching uses semantic tokens only, persists to user
+  settings, and reloads live from the watched override files.
+- **Frame cost and churn:** the release text-frame benchmark runs the real pipeline
+  over 1,000 glyphs (800 textured quads, 4 rects, 2 SDL geometry calls). Across three
+  runs, p50 is 0.697/0.744/1.079 ms, p95 is 3.468/9.623/5.048 ms, and the mean is
+  1.119/2.216/1.416 ms — within the ≤ 4 ms UI + text budget. Arena usage is stable:
+  35 resets for 35 rendered frames (one per frame), 1,048,576 B capacity, 1,040 B
+  peak used, 40 arena allocations/frame, so no per-frame heap churn is measurable.
+  The 200,000-glyph stress scene (200,000 glyphs, 172,560 quads, 2 geometry calls)
+  averages 22.9–24.5 ms; per ADR-004 the profile-first rule was applied: ~27% arena
+  + layout, ~73% render submit, no cache evictions and one atlas upload, i.e. CPU
+  geometry/overdraw rather than batching or churn. **No GPU backend change is
+  proposed.** Full configuration, phase breakdown, and distributions are recorded in
+  [`docs/benchmarks/2026-11-19-text-frame.md`](benchmarks/2026-11-19-text-frame.md).
+- **Unit tests:** ICU grapheme boundary cases, shaping cache keys, config parse
+  errors, line-cache keys/eviction, scale math and event translation, plus the
+  renderer-texture and file-watcher integration tests. `ctest` passes 4/4 in debug,
+  release, and bench builds; debug is clean under ASan/UBSan and
+  `clang-format --dry-run --Werror` is clean.
 
 ---
 
@@ -477,9 +518,11 @@ To keep the project honest, these are explicitly **not** early work:
 
 ## 4. Immediate next action
 
-Phase 1 is complete and verified. In Phase 2, ICU validation/graphemes, the FreeType
-atlas, HarfBuzz shaping, renderer texture support, atlas upload, single-line text layout,
-the multilingual demo screen, the retained widget tree and panels, typed config/themes,
-and user overrides with live reload are complete and tested. Next close the remaining
-Phase 2 exit-criteria gaps (DPI/scale re-rasterization, 1,000-glyph frame cost, line
-caching) before starting the Phase 3 text engine.
+Phase 1 and Phase 2 are complete and verified. Phase 2 delivered ICU
+validation/graphemes, the FreeType atlas, HarfBuzz shaping, renderer textures and
+atlas upload, single-line text layout, the line cache, DPI/scale re-rasterization,
+the multilingual demo screen, the retained widget tree and panels, typed
+config/themes, user overrides with live reload, and the text-frame benchmark with
+recorded exit evidence (see above). The next action is to start Phase 3: the
+standalone editing buffer (piece table, balanced tree, line index, commands/undo),
+keeping the Phase 1/2 build, tests, and benchmark green.

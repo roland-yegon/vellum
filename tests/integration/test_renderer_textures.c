@@ -75,15 +75,14 @@ int main(void)
         goto done;
     }
 
-    const uint32_t before = vellum_renderer_draw_calls(renderer);
-    /* One white rect batch, one white quad batch, one custom-texture quad batch. */
-    if (!submit_with(renderer, handle, &error) ||
-        vellum_renderer_draw_calls(renderer) != before + 3u) {
+    /* One white rect batch, one white quad batch, one custom-texture quad batch.
+     * draw_calls is per submission, so a rejected submit reports zero. */
+    if (!submit_with(renderer, handle, &error) || vellum_renderer_draw_calls(renderer) != 3u) {
         fprintf(stderr, "submit failed: %s\n", vellum_error_message(&error));
         goto done;
     }
     if (submit_with(renderer, handle + 100u, &error) || error.code != VELLUM_ERR_INVALID_ARGUMENT ||
-        vellum_renderer_draw_calls(renderer) != before + 3u) {
+        vellum_renderer_draw_calls(renderer) != 0u) {
         fprintf(stderr, "stale handle submit unexpectedly succeeded\n");
         goto done;
     }

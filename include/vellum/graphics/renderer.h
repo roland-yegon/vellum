@@ -34,6 +34,9 @@ void vellum_renderer_destroy_texture(VellumRenderer *renderer, VellumTextureHand
 bool vellum_renderer_submit(VellumRenderer *renderer, const VellumDrawList *list,
                             VellumErrorInfo *error);
 const char *vellum_renderer_name(const VellumRenderer *renderer);
+/* 0 disables vsync, 1 enables it, -1 is adaptive. Benchmarks disable it so CPU
+ * frame measurements are not dominated by presentation waits. */
+bool vellum_renderer_set_vsync(VellumRenderer *renderer, int vsync);
 uint32_t vellum_renderer_draw_calls(const VellumRenderer *renderer);
 size_t vellum_renderer_vertex_capacity(const VellumRenderer *renderer);
 void vellum_renderer_destroy(VellumRenderer *renderer);

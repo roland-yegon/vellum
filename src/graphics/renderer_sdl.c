@@ -293,13 +293,15 @@ bool vellum_renderer_submit(VellumRenderer *backend, const VellumDrawList *list,
         return false;
     }
 
+    backend->draw_calls = 0u; /* Counter describes the frame being submitted. */
+
     size_t rect_count = 0u;
     size_t quad_count = 0u;
     const VellumRect *rects = vellum_draw_list_rects(list, &rect_count);
     const VellumTexturedQuad *quads = vellum_draw_list_quads(list, &quad_count);
     const size_t total = rect_count + quad_count;
 
-    /* Reject stale or unknown handles before changing any renderer state. */
+    /* Reject stale or unknown handles before touching any SDL renderer state. */
     for (size_t i = 0u; i < quad_count; ++i) {
         if (draw_texture(backend, quads[i].texture) == NULL) {
             vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT,
@@ -396,6 +398,14 @@ const char *vellum_renderer_name(const VellumRenderer *backend)
     }
     const char *name = SDL_GetRendererName(backend->renderer);
     return name == NULL ? "unknown" : name;
+}
+
+bool vellum_renderer_set_vsync(VellumRenderer *backend, int vsync)
+{
+    if (backend == NULL || backend->renderer == NULL) {
+        return false;
+    }
+    return SDL_SetRenderVSync(backend->renderer, vsync);
 }
 
 uint32_t vellum_renderer_draw_calls(const VellumRenderer *backend)
