@@ -338,8 +338,13 @@ layer is implemented in `src/text/edit.c` with the public API in `include/vellum
 selection insert/replace, grapheme-aware backspace/delete with smart outdent of leading
 whitespace, newline with auto-indent, and indent/outdent of selected lines. It borrows all
 four lower layers, routes every mutation through the command stack (grouping multi-edit
-operations in transactions), and keeps the cursor notified. Bracket completion, multiple
-cursors, clipboard, and visual-line scrolling remain deferred.
+operations in transactions), and keeps the cursor notified. It also exposes SDL-free
+copy/cut/paste helpers over the selection. The SDL clipboard itself is wrapped in
+`src/platform/clipboard.c` (`include/vellum/platform/clipboard.h`): main-thread calls to
+SDL3's text clipboard returning a malloc'd UTF-8 copy, keeping SDL out of `vellum_text`.
+App-level keybindings and editor-state ownership are deferred to the editor-experience
+phase. Bracket completion, multiple cursors, drag-and-drop, and visual-line scrolling
+remain deferred.
 
 ### 7.6 Editor model
 
@@ -528,7 +533,7 @@ panels, typed config/themes, live config reload, and the text-frame benchmark ar
 implemented and verified; see `ROADMAP.md` and
 [`benchmarks/2026-11-19-text-frame.md`](benchmarks/2026-11-19-text-frame.md). Phase 3
 is in progress with the standalone buffer core, line index, command stack (including
-adjacent-insert typing coalescing), grapheme-aware cursor/selection, and editing
-operations (insert/replace, grapheme-aware delete, smart backspace, newline auto-indent,
-indent/outdent) implemented and verified. The next increment is clipboard integration
-and the scrolling model.
+adjacent-insert typing coalescing), grapheme-aware cursor/selection, editing operations
+(insert/replace, grapheme-aware delete, smart backspace, newline auto-indent,
+indent/outdent), and SDL-backed clipboard support (text-level copy/cut/paste plus a
+platform wrapper) implemented and verified. The next increment is the scrolling model.

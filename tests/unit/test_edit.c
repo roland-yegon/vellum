@@ -354,6 +354,116 @@ static bool indent_outdent(void)
     return ok;
 }
 
+static bool check_copied(const char *text, size_t length, const char *expected,
+                         size_t expected_length)
+{
+    if (length != expected_length || strlen(text) != expected_length ||
+        memcmp(text, expected, expected_length) != 0) {
+        fprintf(stderr, "edit copy: expected %zu bytes '%s', got %zu bytes '%s'\n", expected_length,
+                expected, length, text);
+        return false;
+    }
+    return true;
+}
+
+static bool clipboard_text_operations(void)
+{
+    Fixture fixture;
+    if (!fixture_init(&fixture, "abcdef", 6u)) {
+        return false;
+    }
+    VellumErrorInfo error;
+    vellum_error_init(&error);
+    bool ok = true;
+    char *copied = NULL;
+    size_t copied_length = 0u;
+
+#define EDIT_STEP(name, expr)                                                                      \
+    do {                                                                                           \
+        if (ok && !(expr)) {                                                                       \
+            fprintf(stderr, "edit clipboard %s failed: %s\n", name, vellum_error_message(&error)); \
+            ok = false;                                                                            \
+        }                                                                                          \
+    } while (0)
+
+    EDIT_STEP("select bcd", vellum_cursor_select(fixture.cursor, 1u, 4u, &error));
+    EDIT_STEP("copy", vellum_editor_copy(fixture.editor, &copied, &copied_length, &error));
+    EDIT_STEP("copied bytes", check_copied(copied, copied_length, "bcd", 3u));
+    EDIT_STEP("copy unchanged", check_text(&fixture, "abcdef", 6u));
+    EDIT_STEP("copy keeps selection", vellum_cursor_anchor(fixture.cursor) == 1u &&
+                                          vellum_cursor_position(fixture.cursor) == 4u);
+    free(copied);
+    copied = NULL;
+
+    /* Copy with a collapsed caret is rejected and clears the outputs. */
+    vellum_cursor_collapse(fixture.cursor);
+    copied = (char *)0x1;
+    if (vellum_editor_copy(fixture.editor, &copied, &copied_length, &error) ||
+        error.code != VELLUM_ERR_INVALID_ARGUMENT || copied != NULL || copied_length != 0u) {
+        fprintf(stderr, "edit copy should reject a collapsed selection\n");
+        ok = false;
+    }
+
+    /* Paste at the caret, then paste over a selection. */
+    EDIT_STEP("set three", vellum_cursor_set(fixture.cursor, 3u, &error));
+    EDIT_STEP("paste", vellum_editor_paste(fixture.editor, "XY", 2u, &error));
+    EDIT_STEP("pasted text", check_text(&fixture, "abcXYdef", 8u));
+    EDIT_STEP("pasted caret", check_position(&fixture, 5u, "pasted caret"));
+    EDIT_STEP("select XY", vellum_cursor_select(fixture.cursor, 3u, 5u, &error));
+    EDIT_STEP("paste over", vellum_editor_paste(fixture.editor, "Z", 1u, &error));
+    EDIT_STEP("replaced text", check_text(&fixture, "abcZdef", 7u));
+    EDIT_STEP("undo paste", vellum_editor_undo(fixture.editor, &error));
+    EDIT_STEP("undo pasted", check_text(&fixture, "abcXYdef", 8u));
+
+    /* Cut copies out and deletes in one undo entry. */
+    EDIT_STEP("select XY again", vellum_cursor_select(fixture.cursor, 3u, 5u, &error));
+    EDIT_STEP("cut", vellum_editor_cut(fixture.editor, &copied, &copied_length, &error));
+    EDIT_STEP("cut bytes", check_copied(copied, copied_length, "XY", 2u));
+    EDIT_STEP("cut text", check_text(&fixture, "abcdef", 6u));
+    EDIT_STEP("cut caret", check_position(&fixture, 3u, "cut caret"));
+    free(copied);
+    copied = NULL;
+    EDIT_STEP("undo cut", vellum_editor_undo(fixture.editor, &error));
+    EDIT_STEP("undo cut text", check_text(&fixture, "abcXYdef", 8u));
+
+    /* Embedded NULs are reported by out_length even though the C string stops. */
+    fixture_destroy(&fixture);
+    static const char with_nul[] = {'a', '\0', 'b', 'c'};
+    if (!fixture_init(&fixture, with_nul, sizeof(with_nul))) {
+        return false;
+    }
+    EDIT_STEP("select with NUL", vellum_cursor_select(fixture.cursor, 0u, 4u, &error));
+    EDIT_STEP("copy NUL", vellum_editor_copy(fixture.editor, &copied, &copied_length, &error));
+    if (ok && (copied_length != 4u || strlen(copied) != 1u || copied[1u] != '\0' ||
+               memcmp(copied, with_nul, sizeof(with_nul)) != 0)) {
+        fprintf(stderr, "edit copy lost embedded NUL bytes\n");
+        ok = false;
+    }
+    free(copied);
+    copied = NULL;
+
+    /* NULL and collapsed-cut handling. */
+    if (vellum_editor_copy(NULL, &copied, &copied_length, &error) ||
+        vellum_editor_copy(fixture.editor, NULL, &copied_length, &error) ||
+        vellum_editor_cut(NULL, &copied, &copied_length, &error) ||
+        vellum_editor_paste(NULL, "x", 1u, &error) ||
+        vellum_editor_paste(fixture.editor, NULL, 1u, &error) ||
+        vellum_editor_insert_text(fixture.editor, NULL, 1u, &error)) {
+        fprintf(stderr, "edit clipboard NULL handling failed\n");
+        ok = false;
+    }
+    vellum_cursor_collapse(fixture.cursor);
+    if (vellum_editor_cut(fixture.editor, &copied, &copied_length, &error) ||
+        error.code != VELLUM_ERR_INVALID_ARGUMENT || copied != NULL) {
+        fprintf(stderr, "edit cut should reject a collapsed selection\n");
+        ok = false;
+    }
+
+#undef EDIT_STEP
+    fixture_destroy(&fixture);
+    return ok;
+}
+
 static bool configuration_and_validation(void)
 {
     Fixture fixture;
@@ -553,6 +663,10 @@ bool test_edit(void)
     }
     if (!indent_outdent()) {
         fprintf(stderr, "edit indent_outdent failed\n");
+        return false;
+    }
+    if (!clipboard_text_operations()) {
+        fprintf(stderr, "edit clipboard_text_operations failed\n");
         return false;
     }
     if (!configuration_and_validation()) {

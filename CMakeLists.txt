@@ -114,6 +114,7 @@ target_link_libraries(vellum_config PUBLIC
     vellum_build_flags)
 
 add_library(vellum_platform STATIC
+    src/platform/clipboard.c
     src/platform/events.c
     src/platform/paths.c
     src/platform/signals.c
@@ -158,6 +159,7 @@ add_executable(vellum_unit_tests
     tests/unit/test_command.c
     tests/unit/test_cursor.c
     tests/unit/test_edit.c
+    tests/unit/test_clipboard.c
     tests/unit/test_font.c
     tests/unit/test_shape.c
     tests/unit/test_layout.c

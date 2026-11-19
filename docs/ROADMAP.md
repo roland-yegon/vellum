@@ -398,7 +398,7 @@ layer are implemented and verified as the first Phase 3 increments:
   current line, and indent/outdent of every logical line touched by the selection.
   Every operation goes through the command stack and notifies the cursor, so each call
   is one undo entry; undo/redo wrappers clamp and re-snap the caret. The indent unit is
-  configurable (default four spaces). Bracket completion, multiple cursors, clipboard,
+  configurable (default four spaces). Bracket completion, multiple cursors, drag-and-drop,
   and visual-line scrolling remain deferred.
 - `src/text/edit.c` groups multi-edit calls in transactions so a failed operation
   aborts cleanly, and deletes the preceding line break when backspacing at a line start
@@ -409,10 +409,24 @@ layer are implemented and verified as the first Phase 3 increments:
   indent-unit configuration, NULL handling, and a 10,000-operation differential fuzz
   against a contiguous-string model. The same fuzz was additionally run at 200,000
   operations under ASan/UBSan as a stress check.
+- Clipboard support is split across two layers. `vellum_text` adds SDL-free
+  `vellum_editor_copy`, `vellum_editor_cut`, and `vellum_editor_paste`: copy reads the
+  selected byte range into a caller-owned NUL-terminated allocation (reporting the exact
+  byte length, including embedded NULs), cut copies and deletes the selection as one
+  undo entry, and paste replaces the selection or inserts at the caret. `vellum_platform`
+  adds `include/vellum/platform/clipboard.h`, a thin main-thread wrapper over
+  `SDL_SetClipboardText`/`SDL_GetClipboardText`/`SDL_HasClipboardText` that returns a
+  malloc'd UTF-8 copy. SDL3 3.4.20 already provides these APIs, so no new dependency is
+  introduced. App-level keybindings and editor-state ownership are deferred to the
+  editor-experience phase.
+- Unit tests in `tests/unit/test_edit.c` cover copy/cut/paste, collapsed-selection
+  rejection, embedded NULs, and undo of cuts. `tests/unit/test_clipboard.c` exercises the
+  SDL wrapper headlessly with the dummy video driver (ASCII and UTF-8 roundtrips, empty
+  and cleared clipboard).
 
-Remaining Phase 3 increments (clipboard/drag-and-drop, bracket completion, multiple
-cursors, scrolling integration, and scale benchmarks) are not yet implemented; the
-phase exit criteria are therefore not yet met.
+Remaining Phase 3 increments (drag-and-drop, bracket completion, multiple cursors,
+scrolling integration, and scale benchmarks) are not yet implemented; the phase exit
+criteria are therefore not yet met.
 
 ---
 
@@ -619,8 +633,9 @@ recorded exit evidence (see above). Phase 3 has advanced with the standalone buf
 core, line index, and command stack: a byte-oriented piece table indexed by an AVL
 tree, OOM-safe split/insert/delete, a flat-array line index with incremental updates,
 inverse-operation undo/redo with transactions, bounded memory, adjacent-insert typing
-coalescing, grapheme-aware cursor/selection with edit remapping, and editing operations
+coalescing, grapheme-aware cursor/selection with edit remapping, editing operations
 (insert/replace, grapheme-aware delete, smart backspace, newline auto-indent, and
-indent/outdent), plus differential fuzz tests. The next action is clipboard integration
-and the scrolling model, followed by multiple cursors and scale benchmarks, keeping all
-earlier builds, tests, and benchmarks green.
+indent/outdent), and SDL-backed clipboard support via a text-level copy/cut/paste API and
+a platform clipboard wrapper, plus differential fuzz tests. The next action is the
+scrolling model, followed by multiple cursors and scale benchmarks, keeping all earlier
+builds, tests, and benchmarks green.

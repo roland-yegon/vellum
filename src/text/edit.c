@@ -219,6 +219,100 @@ bool vellum_editor_insert_text(VellumEditor *editor, const char *text, size_t le
         vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "insert needs an editor");
         return false;
     }
+    if (text == NULL && length != 0u) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "insert text is NULL");
+        return false;
+    }
+    return replace_selection(editor, text, length, error);
+}
+
+static bool copy_selection(const VellumEditor *editor, char **out_text, size_t *out_length,
+                           VellumErrorInfo *error)
+{
+    const size_t start = vellum_cursor_selection_start(editor->cursor);
+    const size_t end = vellum_cursor_selection_end(editor->cursor);
+    const size_t length = end - start;
+    char *text = malloc(length + 1u);
+    if (text == NULL) {
+        vellum_error_set(error, VELLUM_ERR_ALLOC_FAILED, "could not allocate copied text");
+        return false;
+    }
+    if (length > 0u && !vellum_buffer_read(editor->buffer, start, text, length, error)) {
+        free(text);
+        return false;
+    }
+    text[length] = '\0';
+    *out_text = text;
+    if (out_length != NULL) {
+        *out_length = length;
+    }
+    return true;
+}
+
+bool vellum_editor_copy(const VellumEditor *editor, char **out_text, size_t *out_length,
+                        VellumErrorInfo *error)
+{
+    vellum_error_init(error);
+    if (editor == NULL || out_text == NULL) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "copy needs an editor and output");
+        return false;
+    }
+    *out_text = NULL;
+    if (out_length != NULL) {
+        *out_length = 0u;
+    }
+    if (!vellum_cursor_has_selection(editor->cursor)) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "copy needs a non-empty selection");
+        return false;
+    }
+    return copy_selection(editor, out_text, out_length, error);
+}
+
+bool vellum_editor_cut(VellumEditor *editor, char **out_text, size_t *out_length,
+                       VellumErrorInfo *error)
+{
+    vellum_error_init(error);
+    if (editor == NULL || out_text == NULL) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "cut needs an editor and output");
+        return false;
+    }
+    *out_text = NULL;
+    if (out_length != NULL) {
+        *out_length = 0u;
+    }
+    if (!vellum_cursor_has_selection(editor->cursor)) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "cut needs a non-empty selection");
+        return false;
+    }
+
+    char *text = NULL;
+    size_t length = 0u;
+    if (!copy_selection(editor, &text, &length, error)) {
+        return false;
+    }
+    if (!replace_selection(editor, "", 0u, error)) {
+        free(text);
+        return false;
+    }
+    *out_text = text;
+    if (out_length != NULL) {
+        *out_length = length;
+    }
+    return true;
+}
+
+bool vellum_editor_paste(VellumEditor *editor, const char *text, size_t length,
+                         VellumErrorInfo *error)
+{
+    vellum_error_init(error);
+    if (editor == NULL) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "paste needs an editor");
+        return false;
+    }
+    if (text == NULL && length != 0u) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "paste text is NULL");
+        return false;
+    }
     return replace_selection(editor, text, length, error);
 }
 

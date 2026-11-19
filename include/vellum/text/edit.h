@@ -43,6 +43,26 @@ size_t vellum_editor_indent_length(const VellumEditor *editor);
 bool vellum_editor_insert_text(VellumEditor *editor, const char *text, size_t length,
                                VellumErrorInfo *error);
 
+/* Clipboard support stays SDL-free here: the platform layer owns the system
+ * clipboard and passes its text to `paste`/`insert_text`.
+
+ * Copies the selected bytes into a NUL-terminated allocation (caller frees with
+ * free()). `*out_length` reports the byte count, which may include embedded
+ * NULs; the returned C string terminates at the first NUL. Requires a non-empty
+ * selection and leaves the buffer and selection unchanged. */
+bool vellum_editor_copy(const VellumEditor *editor, char **out_text, size_t *out_length,
+                        VellumErrorInfo *error);
+
+/* Copies the selection out, then deletes it as one undo entry and collapses the
+ * caret at the selection start. On failure `*out_text` is NULL. */
+bool vellum_editor_cut(VellumEditor *editor, char **out_text, size_t *out_length,
+                       VellumErrorInfo *error);
+
+/* Text-level paste: replaces the selection or inserts at the caret. Equivalent
+ * to `insert_text`; provided so call sites can name the operation explicitly. */
+bool vellum_editor_paste(VellumEditor *editor, const char *text, size_t length,
+                         VellumErrorInfo *error);
+
 /* Deletes the selection. Otherwise backspace removes the previous grapheme,
  * or one indent unit while inside a line's leading whitespace. Delete removes
  * the next grapheme. Both are no-ops at the corresponding buffer boundary. */

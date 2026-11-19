@@ -113,7 +113,9 @@ stack, and cursor: selection insert/replace, grapheme-aware backspace/delete wit
 outdent of leading whitespace, newline with auto-indent, and indent/outdent of selected
 lines, each as one undoable entry. Its tests cover those operations, line-break
 backspace, Unicode clusters, and a 10,000-operation differential fuzz (also stress-run
-at 200,000 operations under ASan/UBSan).
+at 200,000 operations under ASan/UBSan). Clipboard support adds SDL-free text-level
+copy/cut/paste and a headless-tested SDL3 platform wrapper around the system text
+clipboard; app-level keybindings come with the editor UI.
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence and
 [`docs/benchmarks/2026-11-19-text-frame.md`](docs/benchmarks/2026-11-19-text-frame.md)
 for the recorded benchmark data.
