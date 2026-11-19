@@ -87,6 +87,7 @@ add_library(vellum_graphics STATIC
     src/graphics/font.c
     src/graphics/shape.c
     src/graphics/text_layout.c
+    src/graphics/line_cache.c
     src/graphics/renderer_sdl.c)
 target_link_libraries(vellum_graphics PUBLIC
     vellum_core
@@ -148,6 +149,7 @@ add_executable(vellum_unit_tests
     tests/unit/test_font.c
     tests/unit/test_shape.c
     tests/unit/test_layout.c
+    tests/unit/test_line_cache.c
     tests/unit/test_widget.c
     tests/unit/test_panels.c
     tests/unit/test_config.c
