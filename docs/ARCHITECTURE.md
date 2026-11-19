@@ -542,5 +542,7 @@ is in progress with the standalone buffer core, line index, command stack (inclu
 adjacent-insert typing coalescing), grapheme-aware cursor/selection, editing operations
 (insert/replace, grapheme-aware delete, smart backspace, newline auto-indent,
 indent/outdent), SDL-backed clipboard support (text-level copy/cut/paste plus a platform
-wrapper), and a layout-independent scrolling model over the line index implemented and
-verified. The next increment is multiple cursors and scale benchmarks.
+wrapper), a layout-independent scrolling model over the line index, and scale benchmarks
+(100 MB open and 1M-line end typing meet the §10 targets) implemented and verified; see
+[`benchmarks/2026-11-19-text-buffer-scale.md`](benchmarks/2026-11-19-text-buffer-scale.md).
+The next increment is multiple cursors.

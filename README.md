@@ -118,9 +118,13 @@ copy/cut/paste and a headless-tested SDL3 platform wrapper around the system tex
 clipboard; app-level keybindings come with the editor UI. A layout-independent scrolling
 model over the line index clamps offsets to a view size, maps scroll position to visible
 logical lines and byte ranges, and supports scroll-to-line/offset, with tests covering
-clamping, visible ranges, edits, and an invariant sweep.
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence and
+clamping, visible ranges, edits, and an invariant sweep. A text-buffer scale
+benchmark measures a 100 MB open (~166 ms) and 1M-line end typing (~25 µs p95),
+both within the §10 targets, with a random-edit stress case that documents the
+current flat line-index cost on middle edits.
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence,
 [`docs/benchmarks/2026-11-19-text-frame.md`](docs/benchmarks/2026-11-19-text-frame.md)
+and [`docs/benchmarks/2026-11-19-text-buffer-scale.md`](docs/benchmarks/2026-11-19-text-buffer-scale.md)
 for the recorded benchmark data.
 
 ## Architecture

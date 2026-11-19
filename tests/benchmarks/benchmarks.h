@@ -10,5 +10,6 @@
 
 bool bench_draw_list(void);
 bool bench_text_frame(void);
+bool bench_text_buffer(void);
 
 #endif /* VELLUM_TESTS_BENCHMARKS_BENCHMARKS_H */

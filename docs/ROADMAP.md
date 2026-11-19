@@ -435,10 +435,17 @@ layer are implemented and verified as the first Phase 3 increments:
   visible-line and byte-range mapping (including empty documents and unaligned views),
   scroll-to-line/offset, horizontal ensure-visible, re-clamping after an edit shrinks the
   line count, and an invariant sweep across view heights and scroll offsets.
+- Scale benchmarks in `tests/benchmarks/bench_text_buffer.c` cover the Phase 3 exit
+  targets: a 100 MB file open (165–168 ms, well under the 1 s §10 target) and 1M-line
+  end typing (24–27 µs p95, under the 16 ms §10 target). A 10,000-operation random-edit
+  stress workload is also measured (~1.5 ms median, ~3.3 ms p99); it exceeds the generic
+  < 1 ms p99 edit target because the flat line-index array shifts up to 8 MB on a middle
+  line insert/delete. The two-level index remains deferred. Full numbers and verdicts
+  are in [`benchmarks/2026-11-19-text-buffer-scale.md`](benchmarks/2026-11-19-text-buffer-scale.md).
 
 Remaining Phase 3 increments (drag-and-drop, bracket completion, multiple cursors,
-scrollbar rendering, and scale benchmarks) are not yet implemented; the phase exit
-criteria are therefore not yet met.
+and scrollbar rendering) are not yet implemented; the phase exit criteria are therefore
+not yet met.
 
 ---
 
@@ -648,6 +655,7 @@ inverse-operation undo/redo with transactions, bounded memory, adjacent-insert t
 coalescing, grapheme-aware cursor/selection with edit remapping, editing operations
 (insert/replace, grapheme-aware delete, smart backspace, newline auto-indent, and
 indent/outdent), SDL-backed clipboard support via a text-level copy/cut/paste API and a
-platform clipboard wrapper, and a layout-independent scrolling model over the line index,
-plus differential fuzz tests. The next action is multiple cursors and scale benchmarks,
-keeping all earlier builds, tests, and benchmarks green.
+platform clipboard wrapper, a layout-independent scrolling model over the line index, and
+scale benchmarks with recorded exit evidence (100 MB open and 1M-line end typing both
+pass), plus differential fuzz tests. The next action is multiple cursors, keeping all
+earlier builds, tests, and benchmarks green.
