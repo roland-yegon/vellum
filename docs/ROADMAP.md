@@ -158,10 +158,11 @@ first (cheap), then FreeType atlas, then HarfBuzz, testing each in isolation.
 Vellum's licence was switched from MIT to GPL-2.0-only before implementation began;
 third-party components keep their own terms.
 
-The first increment is implemented and verified:
+Implemented increments, each built and tested before proceeding:
 
 - `vellum_text` provides ICU-backed strict UTF-8 validation with byte offset and
-  diagnostic status, plus a `UBRK_CHARACTER` iterator over UTF-8 `UText`.
+  diagnostic status, a `UBRK_CHARACTER` iterator over UTF-8 `UText`, and a first-strong
+  base-direction helper for selecting a HarfBuzz run direction.
 - Unit tests cover ASCII, combining Latin, CJK, Devanagari (documenting ICU's current
   default rules), an emoji ZWJ sequence, a regional-indicator flag, embedded NUL,
   malformed encodings, invalid arguments, and the ICU `int32` length guard.
@@ -169,12 +170,22 @@ The first increment is implemented and verified:
   lookup, an RGBA atlas page with coverage in alpha, a hash-based glyph cache,
   dirty tracking, and face metrics. Unit tests load all three bundled fonts and assert
   Latin, CJK, and Arabic glyph coverage.
+- HarfBuzz run shaping is implemented with per-codepoint font fallback, `calt`/`liga`
+  features, UTF-8 cluster byte offsets, a shaped-run cache verified byte-for-byte, and
+  explicit synchronization of the shared FreeType face size. Probe output with the
+  pinned fonts shows 1 glyph for `A`, the spacer+ligature pair for `!=` and `=>`, 2
+  glyphs for `中文`, and 6 visual-order glyphs for `مرحبا`. JetBrains Mono emits a
+  spacer glyph followed by the ligature rather than one collapsed glyph, and the unit
+  test documents that observed behaviour.
 - Pinned OFL-1.1 fonts and their notices are under `assets/fonts/`; the choice is
-  recorded in [ADR-005](architecture/ADR-005-bundled-multilingual-fonts.md).
-- Debug build and `ctest --preset debug` pass under ASan/UBSan with no warnings.
+  recorded in [ADR-005](architecture/ADR-005-bundled-multilingual-fonts.md). The system
+  text libraries and their licences are recorded in
+  [ADR-006](architecture/ADR-006-icu-freetype-harfbuzz-text-pipeline.md).
+- Debug, release, and bench presets build and pass `ctest`; debug runs under
+  ASan/UBSan, and `clang-format --dry-run --Werror` is clean.
 
-Remaining Phase 2 work: HarfBuzz shaping and cache, renderer texture support,
-theme/config, widgets/panels, and the multilingual demo screen.
+Remaining Phase 2 work: renderer texture support, theme/config, widgets/panels, and
+the multilingual demo screen.
 
 ---
 
@@ -410,6 +421,6 @@ To keep the project honest, these are explicitly **not** early work:
 
 ## 4. Immediate next action
 
-Phase 1 is complete and verified. Begin **Phase 2** with ICU UTF-8 validation and
-grapheme-boundary tests, then build and test before adding the FreeType atlas,
-HarfBuzz shaping, UI widgets, and the multilingual demo screen.
+Phase 1 is complete and verified. In Phase 2, ICU validation/graphemes, the FreeType
+atlas, and HarfBuzz shaping are complete and tested. Next add renderer texture upload,
+then theme/config, widgets/panels, and the multilingual demo screen.

@@ -85,6 +85,12 @@ bool test_unicode(void)
         vellum_utf8_status_name((VellumUtf8Status)999) == NULL) {
         return false;
     }
+    if (vellum_text_base_direction("abc", 3u) != VELLUM_TEXT_LTR ||
+        vellum_text_base_direction("\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7", 10u) !=
+            VELLUM_TEXT_RTL ||
+        vellum_text_base_direction("\xFF", 1u) != VELLUM_TEXT_LTR) {
+        return false;
+    }
 
     static const size_t ascii[] = {0u, 1u, 2u, 3u};
     static const size_t combining[] = {0u, 3u, 4u};

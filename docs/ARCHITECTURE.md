@@ -232,13 +232,14 @@ Owned by `text/` + `graphics/`, independent of editor logic:
 5. **Line caching:** shaped/laid-out lines are cached; only dirty lines are re-shaped.
    Scrolling reuses cached geometry and only builds newly visible lines.
 
-Phase 2 status: step 1 is implemented in `src/text/unicode.c` using ICU 78.3. The
-`vellum_text` library validates UTF-8 with ICU's strict rules and iterates grapheme
-boundaries through `UText`/`UBRK_CHARACTER`. Step 3 is implemented in
-`src/graphics/font.c`: FreeType faces, an RGBA atlas with coverage in alpha, and a
-glyph cache. Pinned OFL fonts are bundled per
-[ADR-005](architecture/ADR-005-bundled-multilingual-fonts.md). HarfBuzz shaping is the
-next increment.
+Phase 2 status: steps 1–3 are implemented. ICU 78.3 powers `vellum_text` UTF-8
+validation, grapheme boundaries, and first-strong direction. FreeType powers the RGBA
+atlas and glyph cache in `src/graphics/font.c`, with pinned fonts bundled per
+[ADR-005](architecture/ADR-005-bundled-multilingual-fonts.md). HarfBuzz 15.1.0 shapes
+runs in `src/graphics/shape.c` with fallback, `calt`/`liga`, UTF-8 cluster offsets,
+and a byte-verified cache. The three system libraries and their licences are recorded
+in [ADR-006](architecture/ADR-006-icu-freetype-harfbuzz-text-pipeline.md). Renderer
+texture upload and line layout are the next increments.
 
 `SDL3_ttf` is **not** part of the core pipeline: we use FreeType/HarfBuzz directly to
 control shaping and caching. The Makefile that referenced it was removed in Phase 1,
@@ -422,7 +423,7 @@ below is a non-normative summary; the ADR is authoritative wherever both cover a
 | --- | --- | --- |
 | C17 + Clang + CMake/Ninja | Brief's stack; verified installed | this document |
 | SDL3 Render API + batched geometry first; GPU only if proven necessary | `SDL_RenderGeometry` batches glyph quads; GPU API adds shader/cycling complexity | [ADR-004](architecture/ADR-004-rendering-sdl3-first-gpu-conditional.md) |
-| FreeType + HarfBuzz + ICU directly | Control over caching, shaping, ligatures, Unicode correctness | this document |
+| FreeType + HarfBuzz + ICU directly | Control over caching, shaping, ligatures, Unicode correctness | [ADR-006](architecture/ADR-006-icu-freetype-harfbuzz-text-pipeline.md) |
 | Piece table + balanced tree + mmap original | Best balance of edit speed, memory, large-file behaviour, multi-cursor | this document |
 | Command/inverse-log undo, not full snapshots | Bounded memory; snapshots later via persistent tree if needed | this document |
 | Tree-sitter vendored and pinned, independent of LSP | Reproducible builds; editor useful with no server installed | [ADR-003](architecture/ADR-003-tree-sitter-vendored-and-pinned.md) |
@@ -434,6 +435,7 @@ below is a non-normative summary; the ADR is authoritative wherever both cover a
 
 ---
 
-**Next step:** continue Phase 2 (Native UI and text foundation), beginning with ICU
-UTF-8 and grapheme-boundary primitives, then the FreeType/HarfBuzz pipeline. Phase 1
-is implemented and verified; see `ROADMAP.md`.
+**Next step:** continue Phase 2 (Native UI and text foundation) with renderer texture
+upload from the glyph atlas, then theme/config, widgets/panels, and the multilingual
+demo screen. ICU, FreeType, and HarfBuzz primitives are implemented and verified; see
+`ROADMAP.md`.

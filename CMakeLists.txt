@@ -47,8 +47,8 @@ find_package(SDL3 3.2.0 CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ICU_UC REQUIRED IMPORTED_TARGET icu-uc)
 
-# FreeType rasterizes atlas glyphs; HarfBuzz is added with the shaping increment.
 pkg_check_modules(FREETYPE2 REQUIRED IMPORTED_TARGET freetype2)
+pkg_check_modules(HARFBUZZ REQUIRED IMPORTED_TARGET harfbuzz)
 
 enable_testing()
 
@@ -78,11 +78,14 @@ target_link_libraries(vellum_text PUBLIC vellum_core vellum_build_flags PkgConfi
 add_library(vellum_graphics STATIC
     src/graphics/draw_list.c
     src/graphics/font.c
+    src/graphics/shape.c
     src/graphics/renderer_sdl.c)
 target_link_libraries(vellum_graphics PUBLIC
     vellum_core
+    vellum_text
     vellum_build_flags
-    PkgConfig::FREETYPE2)
+    PkgConfig::FREETYPE2
+    PkgConfig::HARFBUZZ)
 
 add_library(vellum_platform STATIC
     src/platform/events.c
@@ -112,7 +115,8 @@ add_executable(vellum_unit_tests
     tests/unit/test_draw_list.c
     tests/unit/test_events.c
     tests/unit/test_unicode.c
-    tests/unit/test_font.c)
+    tests/unit/test_font.c
+    tests/unit/test_shape.c)
 target_include_directories(vellum_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(vellum_unit_tests PRIVATE
     vellum_platform

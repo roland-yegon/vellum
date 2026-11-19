@@ -4,6 +4,8 @@
  */
 #include "vellum/graphics/font.h"
 
+#include "font_internal.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -436,4 +438,27 @@ void vellum_font_system_atlas_clear_dirty(VellumFontSystem *system)
     if (system != NULL) {
         system->dirty = false;
     }
+}
+
+FT_Face vellum_font_native_face(VellumFontSystem *system, uint32_t face_id)
+{
+    if (system == NULL || face_id == VELLUM_FONT_NO_FACE || face_id > system->face_count) {
+        return NULL;
+    }
+    return system->faces[face_id - 1u].face;
+}
+
+size_t vellum_font_system_face_count(const VellumFontSystem *system)
+{
+    return system == NULL ? 0u : system->face_count;
+}
+
+bool vellum_font_native_set_pixel_size(FT_Face face, uint32_t pixel_size, VellumErrorInfo *error)
+{
+    if (face == NULL || pixel_size == 0u) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT,
+                         "native face and positive pixel size are required");
+        return false;
+    }
+    return set_pixel_size(face, pixel_size, error);
 }

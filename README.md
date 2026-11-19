@@ -6,9 +6,10 @@ your way.
 
 ## Build
 
-Vellum builds with Clang, CMake, and Ninja. SDL3 3.2.0 or newer, ICU (`icu-uc`), and
-FreeType (`freetype2`) are required. CJK and Arabic fonts are bundled under
-`assets/fonts/`, so no host fonts are needed for the multilingual demo.
+Vellum builds with Clang, CMake, and Ninja. SDL3 3.2.0 or newer, ICU (`icu-uc`),
+FreeType (`freetype2`), and HarfBuzz (`harfbuzz`) are required. CJK and Arabic fonts
+are bundled under `assets/fonts/`, so no host fonts are needed for the multilingual
+demo.
 
 ```sh
 cmake --preset debug
@@ -48,9 +49,9 @@ performance conclusion should be drawn from it yet.
 Phase 1 (Foundation) is implemented: C17/CMake/Ninja build, core utilities, SDL3
 window and event loop, draw list plus a batched SDL Render backend, unit tests,
 integration tests, and the benchmark skeleton. Phase 2 is in progress: ICU-backed
-UTF-8 validation, grapheme boundaries, and a FreeType glyph atlas with pinned
-multilingual fonts are in place. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase
-status and exit evidence.
+UTF-8 validation and grapheme boundaries, a FreeType glyph atlas with pinned
+multilingual fonts, and HarfBuzz run shaping with fallback and a cache are in place.
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence.
 
 ## Architecture
 

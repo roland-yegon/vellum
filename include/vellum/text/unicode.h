@@ -33,11 +33,18 @@ typedef struct {
     VellumUtf8Status status;
 } VellumUtf8Error;
 
+typedef enum { VELLUM_TEXT_LTR = 0, VELLUM_TEXT_RTL = 1 } VellumTextDirection;
+
 const char *vellum_utf8_status_name(VellumUtf8Status status);
 
 /* Uses ICU's strict UTF-8 rules. `length` is a byte count; embedded NUL is allowed.
  * Inputs longer than INT32_MAX bytes are rejected by this phase's ICU bridge. */
 bool vellum_utf8_validate(const char *text, size_t length, VellumUtf8Error *error);
+
+/* First-strong base direction, using ICU's bidi class for each code point. Full
+ * mixed-direction run reordering is a later phase; this selects the HarfBuzz run
+ * direction for a single paragraph. Invalid UTF-8 is treated as LTR. */
+VellumTextDirection vellum_text_base_direction(const char *text, size_t length);
 
 typedef struct VellumGraphemeIterator VellumGraphemeIterator;
 

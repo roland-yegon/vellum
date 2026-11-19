@@ -9,6 +9,7 @@
 #include <stdlib.h>
 
 #include <unicode/ubrk.h>
+#include <unicode/uchar.h>
 #include <unicode/utext.h>
 #include <unicode/utf8.h>
 #include <unicode/utypes.h>
@@ -134,6 +135,34 @@ bool vellum_utf8_validate(const char *text, size_t length, VellumUtf8Error *erro
         }
     }
     return true;
+}
+
+VellumTextDirection vellum_text_base_direction(const char *text, size_t length)
+{
+    if (text == NULL || length == 0u || length > (size_t)INT32_MAX) {
+        return VELLUM_TEXT_LTR;
+    }
+
+    const uint8_t *bytes = (const uint8_t *)text;
+    const int32_t limit = (int32_t)length;
+    int32_t index = 0;
+    while (index < limit) {
+        UChar32 code_point = U_SENTINEL;
+        U8_NEXT(bytes, index, limit, code_point);
+        if (code_point < 0) {
+            return VELLUM_TEXT_LTR;
+        }
+        switch (u_charDirection(code_point)) {
+        case U_LEFT_TO_RIGHT:
+            return VELLUM_TEXT_LTR;
+        case U_RIGHT_TO_LEFT:
+        case U_RIGHT_TO_LEFT_ARABIC:
+            return VELLUM_TEXT_RTL;
+        default:
+            break;
+        }
+    }
+    return VELLUM_TEXT_LTR;
 }
 
 static bool set_icu_error(VellumErrorInfo *error, const char *operation, UErrorCode status)

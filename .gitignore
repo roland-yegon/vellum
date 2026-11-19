@@ -58,3 +58,4 @@ dkms.conf
 obj/
 bin/
 build/
+.cache/
