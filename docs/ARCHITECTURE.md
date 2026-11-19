@@ -232,6 +232,11 @@ Owned by `text/` + `graphics/`, independent of editor logic:
 5. **Line caching:** shaped/laid-out lines are cached; only dirty lines are re-shaped.
    Scrolling reuses cached geometry and only builds newly visible lines.
 
+Phase 2 status: step 1 is implemented in `src/text/unicode.c` using ICU 78.3. The
+`vellum_text` library validates UTF-8 with ICU's strict rules and iterates grapheme
+boundaries through `UText`/`UBRK_CHARACTER`. FreeType and HarfBuzz are the next
+increments.
+
 `SDL3_ttf` is **not** part of the core pipeline: we use FreeType/HarfBuzz directly to
 control shaping and caching. The Makefile that referenced it was removed in Phase 1,
 and the CMake targets do not link SDL3_ttf. It may be reconsidered later only for a

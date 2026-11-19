@@ -155,8 +155,20 @@ first (cheap), then FreeType atlas, then HarfBuzz, testing each in isolation.
 
 ### Phase 2 status — in progress
 
-No Phase 2 code is committed yet. Vellum's licence was switched from MIT to
-GPL-2.0-only before implementation began; third-party components keep their own terms.
+Vellum's licence was switched from MIT to GPL-2.0-only before implementation began;
+third-party components keep their own terms.
+
+The first increment is implemented and verified:
+
+- `vellum_text` provides ICU-backed strict UTF-8 validation with byte offset and
+  diagnostic status, plus a `UBRK_CHARACTER` iterator over UTF-8 `UText`.
+- Unit tests cover ASCII, combining Latin, CJK, Devanagari (documenting ICU's current
+  default rules), an emoji ZWJ sequence, a regional-indicator flag, embedded NUL,
+  malformed encodings, invalid arguments, and the ICU `int32` length guard.
+- Debug build and `ctest --preset debug` pass under ASan/UBSan with no warnings.
+
+Remaining Phase 2 work: FreeType atlas, HarfBuzz shaping and cache, theme/config,
+widgets/panels, and the multilingual demo screen.
 
 ---
 

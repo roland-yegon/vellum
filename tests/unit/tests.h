@@ -14,5 +14,6 @@ bool test_queue(void);
 bool test_trace(void);
 bool test_draw_list(void);
 bool test_events(void);
+bool test_unicode(void);
 
 #endif /* VELLUM_TESTS_UNIT_TESTS_H */

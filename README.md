@@ -6,7 +6,8 @@ your way.
 
 ## Build
 
-Vellum builds with Clang, CMake, and Ninja. SDL3 3.2.0 or newer is required.
+Vellum builds with Clang, CMake, and Ninja. SDL3 3.2.0 or newer and ICU (`icu-uc`) are
+required.
 
 ```sh
 cmake --preset debug
@@ -45,7 +46,8 @@ performance conclusion should be drawn from it yet.
 
 Phase 1 (Foundation) is implemented: C17/CMake/Ninja build, core utilities, SDL3
 window and event loop, draw list plus a batched SDL Render backend, unit tests,
-integration tests, and the benchmark skeleton. See
+integration tests, and the benchmark skeleton. Phase 2 is in progress; ICU-backed
+UTF-8 validation and grapheme boundaries are in place. See
 [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence.
 
 ## Architecture
