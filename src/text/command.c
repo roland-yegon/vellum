@@ -30,6 +30,7 @@ struct VellumCommandStack {
     VellumArray redo;
     VellumEntry pending;
     bool in_transaction;
+    bool can_coalesce_insert;
     size_t memory_limit;
     size_t memory_used;
 };
@@ -281,6 +282,64 @@ static bool apply_inverse(VellumCommandStack *stack, const VellumOp *op, VellumE
                        op->delete_length, error);
 }
 
+/* Extends the most recent standalone insert when the new bytes continue exactly at
+ * its end. Returns `handled = false` when the edit should take the normal path. */
+static bool try_coalesce_insert(VellumCommandStack *stack, const VellumOp *op,
+                                VellumErrorInfo *error, bool *handled)
+{
+    *handled = false;
+    if (!stack->can_coalesce_insert || stack->in_transaction ||
+        vellum_array_size(&stack->undo) == 0u) {
+        return true;
+    }
+    VellumEntry *entry = vellum_array_at(&stack->undo, vellum_array_size(&stack->undo) - 1u);
+    if (vellum_array_size(&entry->ops) != 1u) {
+        return true;
+    }
+    VellumOp *last = vellum_array_at(&entry->ops, 0u);
+    if (last->delete_length != 0u || last->insert_length == 0u || last->insert_text == NULL ||
+        last->offset > SIZE_MAX - last->insert_length ||
+        last->offset + last->insert_length != op->offset) {
+        return true;
+    }
+    if (op->insert_length > SIZE_MAX - last->insert_length) {
+        vellum_error_set(error, VELLUM_ERR_CAPACITY, "coalesced insert length overflow");
+        return false;
+    }
+    if (stack->memory_limit != 0u) {
+        if (stack->memory_used > SIZE_MAX - op->insert_length) {
+            vellum_error_set(error, VELLUM_ERR_CAPACITY, "undo memory accounting overflow");
+            return false;
+        }
+        if (stack->memory_used + op->insert_length > stack->memory_limit) {
+            /* Let the normal path evict old entries instead of growing this one. */
+            return true;
+        }
+    }
+
+    const size_t old_length = last->insert_length;
+    const size_t new_length = old_length + op->insert_length;
+    char *grown = realloc(last->insert_text, new_length);
+    if (grown == NULL) {
+        vellum_error_set(error, VELLUM_ERR_ALLOC_FAILED,
+                         "could not grow coalesced insert to %zu bytes", new_length);
+        return false;
+    }
+    memcpy(grown + old_length, op->insert_text, op->insert_length);
+    last->insert_text = grown;
+    last->insert_length = new_length;
+    stack->memory_used += op->insert_length;
+    clear_entries(&stack->redo, &stack->memory_used);
+
+    if (!apply_steps(stack, op->offset, 0u, NULL, op->insert_text, op->insert_length, error)) {
+        last->insert_length = old_length;
+        stack->memory_used -= op->insert_length;
+        return false;
+    }
+    *handled = true;
+    return true;
+}
+
 VellumCommandStack *vellum_command_stack_create(VellumBuffer *buffer, VellumLineIndex *lines,
                                                 size_t memory_limit, VellumErrorInfo *error)
 {
@@ -409,7 +468,18 @@ bool vellum_command_insert(VellumCommandStack *stack, size_t offset, const char 
     if (!make_op(stack, offset, 0u, text, length, &op, error)) {
         return false;
     }
-    return record_op(stack, &op, error);
+    bool handled = false;
+    if (!try_coalesce_insert(stack, &op, error, &handled)) {
+        op_destroy(&op);
+        return false;
+    }
+    if (handled) {
+        op_destroy(&op);
+        return true;
+    }
+    const bool ok = record_op(stack, &op, error);
+    stack->can_coalesce_insert = ok && !stack->in_transaction;
+    return ok;
 }
 
 bool vellum_command_delete(VellumCommandStack *stack, size_t offset, size_t length,
@@ -424,7 +494,9 @@ bool vellum_command_delete(VellumCommandStack *stack, size_t offset, size_t leng
     if (!make_op(stack, offset, length, NULL, 0u, &op, error)) {
         return false;
     }
-    return record_op(stack, &op, error);
+    const bool ok = record_op(stack, &op, error);
+    stack->can_coalesce_insert = false;
+    return ok;
 }
 
 bool vellum_command_replace(VellumCommandStack *stack, size_t offset, size_t delete_length,
@@ -439,7 +511,9 @@ bool vellum_command_replace(VellumCommandStack *stack, size_t offset, size_t del
     if (!make_op(stack, offset, delete_length, text, insert_length, &op, error)) {
         return false;
     }
-    return record_op(stack, &op, error);
+    const bool ok = record_op(stack, &op, error);
+    stack->can_coalesce_insert = false;
+    return ok;
 }
 
 bool vellum_command_begin(VellumCommandStack *stack, VellumErrorInfo *error)
@@ -458,6 +532,7 @@ bool vellum_command_begin(VellumCommandStack *stack, VellumErrorInfo *error)
         return false;
     }
     stack->in_transaction = true;
+    stack->can_coalesce_insert = false;
     stack->memory_used += sizeof(VellumEntry);
     return true;
 }
@@ -473,6 +548,7 @@ bool vellum_command_commit(VellumCommandStack *stack, VellumErrorInfo *error)
         stack->memory_used -= entry_memory(&stack->pending);
         entry_destroy(&stack->pending);
         stack->in_transaction = false;
+        stack->can_coalesce_insert = false;
         return true;
     }
     if (!reserve_one(&stack->undo, error)) {
@@ -486,6 +562,7 @@ bool vellum_command_commit(VellumCommandStack *stack, VellumErrorInfo *error)
     *entry = stack->pending;
     memset(&stack->pending, 0, sizeof(stack->pending));
     stack->in_transaction = false;
+    stack->can_coalesce_insert = false;
     return true;
 }
 
@@ -505,6 +582,7 @@ bool vellum_command_abort(VellumCommandStack *stack, VellumErrorInfo *error)
     stack->memory_used -= entry_memory(&stack->pending);
     entry_destroy(&stack->pending);
     stack->in_transaction = false;
+    stack->can_coalesce_insert = false;
     return true;
 }
 
@@ -531,6 +609,7 @@ bool vellum_command_undo(VellumCommandStack *stack, VellumErrorInfo *error)
         vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "undo needs a command stack");
         return false;
     }
+    stack->can_coalesce_insert = false;
     if (stack->in_transaction) {
         vellum_error_set(error, VELLUM_ERR_UNSUPPORTED, "cannot undo inside a transaction");
         return false;
@@ -560,6 +639,7 @@ bool vellum_command_redo(VellumCommandStack *stack, VellumErrorInfo *error)
         vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "redo needs a command stack");
         return false;
     }
+    stack->can_coalesce_insert = false;
     if (stack->in_transaction) {
         vellum_error_set(error, VELLUM_ERR_UNSUPPORTED, "cannot redo inside a transaction");
         return false;

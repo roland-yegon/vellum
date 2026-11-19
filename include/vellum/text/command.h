@@ -22,8 +22,8 @@ extern "C" {
  *
  * `memory_limit` bounds the bytes retained for undo/redo records (0 means
  * unlimited); reaching it discards the oldest undo entries. Transactions group
- * several edits into one undo entry and cannot be nested. Typing coalescing is
- * not implemented yet. */
+ * several edits into one undo entry and cannot be nested. Adjacent standalone
+ * inserts coalesce into one undo entry, so a run of typing is undone at once. */
 typedef struct VellumCommandStack VellumCommandStack;
 
 VellumCommandStack *vellum_command_stack_create(VellumBuffer *buffer, VellumLineIndex *lines,

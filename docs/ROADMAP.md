@@ -361,20 +361,22 @@ verified as the first Phase 3 increments:
   replacements record both forward and inverse payloads before mutating the buffer;
   undo/redo replay them in the correct order. Non-nested transactions group several
   edits into one undo entry, and a byte budget discards the oldest undo entries while
-  keeping stack order intact. Typing coalescing is not implemented yet.
+  keeping stack order intact. Adjacent standalone inserts coalesce into one undo entry,
+  so a run of typing is undone at once; deletes, replacements, undo/redo, and
+  transactions break the run.
 - `src/text/command.c` applies each edit as delete-then-insert, notifies the line
   index after each step, and attempts to restore deleted bytes if a later insert
   allocation fails. Undo/redo and transaction abort apply inverse operations in
   reverse order. A diagnostic validator checks the buffer, line index, edit payloads,
   and memory accounting.
 - Unit tests in `tests/unit/test_command.c` cover insert/delete/replace undo and redo,
-  transaction commit/abort, bounded-memory eviction, and a 10,000-operation
-  differential fuzz against a naive string model with its own undo/redo history. The
-  same suite was additionally run at 200,000 operations under ASan/UBSan as a stress
-  check.
+  transaction commit/abort, bounded-memory eviction, adjacent-insert coalescing (with
+  and without newlines), and a 10,000-operation differential fuzz against a naive
+  string model with its own undo/redo history. The same suite was additionally run at
+  200,000 operations under ASan/UBSan as a stress check.
 
-Remaining Phase 3 increments (typing coalescing, cursor/selection, editing
-operations, scrolling integration, and scale benchmarks) are not yet implemented;
+Remaining Phase 3 increments (cursor/selection, editing operations, scrolling
+integration, and scale benchmarks) are not yet implemented;
 the phase exit criteria are therefore not yet met.
 
 ---
@@ -581,6 +583,6 @@ config/themes, user overrides with live reload, and the text-frame benchmark wit
 recorded exit evidence (see above). Phase 3 has advanced with the standalone buffer
 core, line index, and command stack: a byte-oriented piece table indexed by an AVL
 tree, OOM-safe split/insert/delete, a flat-array line index with incremental updates,
-inverse-operation undo/redo with transactions and bounded memory, and differential
-fuzz tests. The next action is typing coalescing, then cursor/selection primitives,
-keeping all earlier builds, tests, and benchmarks green.
+inverse-operation undo/redo with transactions, bounded memory, and adjacent-insert
+typing coalescing, plus differential fuzz tests. The next action is cursor/selection
+primitives, keeping all earlier builds, tests, and benchmarks green.

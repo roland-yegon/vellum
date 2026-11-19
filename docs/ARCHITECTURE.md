@@ -326,9 +326,9 @@ in `include/vellum/text/line_index.h`, using a flat sorted array of line starts 
 binary search, on-demand terminator detection (LF/CRLF/CR), and incremental updates
 near edits. The command/undo layer is implemented in `src/text/command.c` with the
 public API in `include/vellum/text/command.h`: inverse-operation insert/delete/replace
-records, undo/redo, non-nested transactions, and a byte-bounded undo history that
-discards oldest entries without disturbing order. Typing coalescing is deferred to a
-later increment.
+records, undo/redo, non-nested transactions, a byte-bounded undo history that
+discards oldest entries without disturbing order, and adjacent-insert typing
+coalescing (deletes, replacements, undo/redo, and transactions break the run).
 
 ### 7.6 Editor model
 
@@ -517,5 +517,5 @@ panels, typed config/themes, live config reload, and the text-frame benchmark ar
 implemented and verified; see `ROADMAP.md` and
 [`benchmarks/2026-11-19-text-frame.md`](benchmarks/2026-11-19-text-frame.md). Phase 3
 is in progress with the standalone buffer core, line index, and command stack
-implemented and verified. The next increment is typing coalescing, followed by
-cursor/selection primitives.
+(including adjacent-insert typing coalescing) implemented and verified. The next
+increment is cursor/selection primitives.

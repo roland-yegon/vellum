@@ -98,11 +98,12 @@ array and binary search, derives LF/CRLF/CR terminators on demand from the buffe
 updates incrementally near edits; its tests cover mixed endings, CRLF boundary
 changes, and a 10,000-operation differential fuzz against a fresh rebuild (also
 stress-run at 1,000,000 operations under ASan/UBSan). An inverse-operation command
-stack adds undo/redo for insert, delete, and replace, non-nested transactions, and a
-byte-bounded undo history; its tests cover undo/redo, commit/abort, memory eviction,
-and a 10,000-operation differential fuzz against a naive string model with its own
-undo/redo history (also stress-run at 200,000 operations under ASan/UBSan). Typing
-coalescing and the cursor layer are not yet built.
+stack adds undo/redo for insert, delete, and replace, non-nested transactions, a
+byte-bounded undo history, and adjacent-insert typing coalescing (a run of typing
+is undone at once); its tests cover undo/redo, commit/abort, memory eviction,
+coalescing, and a 10,000-operation differential fuzz against a naive string model
+with its own undo/redo history (also stress-run at 200,000 operations under
+ASan/UBSan). The cursor layer is not yet built.
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence and
 [`docs/benchmarks/2026-11-19-text-frame.md`](docs/benchmarks/2026-11-19-text-frame.md)
 for the recorded benchmark data.

@@ -202,6 +202,14 @@ static bool bounded_memory(void)
     return ok;
 }
 
+/* An empty transaction invalidates adjacent-insert coalescing without changing the
+ * buffer, keeping the fuzz reference model one snapshot per command. */
+static bool break_coalescing(Fixture *fixture, VellumErrorInfo *error)
+{
+    return vellum_command_begin(fixture->stack, error) &&
+           vellum_command_commit(fixture->stack, error);
+}
+
 static uint32_t next_random(uint32_t *state)
 {
     uint32_t value = *state;
@@ -229,6 +237,68 @@ static void restore_state(char *text, size_t *length, char (*states)[MAX_TEXT], 
     text[*length] = '\0';
 }
 
+static bool coalescing(void)
+{
+    Fixture fixture;
+    if (!fixture_init(&fixture, "", 0u, 0u)) {
+        return false;
+    }
+    VellumErrorInfo error;
+    bool ok = true;
+#define COALESCE_STEP(name, expr)                                                                  \
+    do {                                                                                           \
+        if (ok && !(expr)) {                                                                       \
+            fprintf(stderr, "coalescing %s failed: %s\n", name, vellum_error_message(&error));     \
+            ok = false;                                                                            \
+        }                                                                                          \
+    } while (0)
+
+    COALESCE_STEP("type a", vellum_command_insert(fixture.stack, 0u, "a", 1u, &error));
+    COALESCE_STEP("depth after a", vellum_command_undo_depth(fixture.stack) == 1u);
+    COALESCE_STEP("type b", vellum_command_insert(fixture.stack, 1u, "b", 1u, &error));
+    COALESCE_STEP("depth after b", vellum_command_undo_depth(fixture.stack) == 1u);
+    COALESCE_STEP("type c", vellum_command_insert(fixture.stack, 2u, "c", 1u, &error));
+    COALESCE_STEP("typed text", check_text(&fixture, "abc", 3u));
+    COALESCE_STEP("undo typing", vellum_command_undo(fixture.stack, &error));
+    COALESCE_STEP("undone text", check_text(&fixture, "", 0u));
+    COALESCE_STEP("redo typing", vellum_command_redo(fixture.stack, &error));
+    COALESCE_STEP("redone text", check_text(&fixture, "abc", 3u));
+
+    COALESCE_STEP("type newline", vellum_command_insert(fixture.stack, 3u, "\n", 1u, &error));
+    COALESCE_STEP("type after newline", vellum_command_insert(fixture.stack, 4u, "x", 1u, &error));
+    COALESCE_STEP("multiline text", check_text(&fixture, "abc\nx", 5u));
+    COALESCE_STEP("multiline count", vellum_line_index_line_count(fixture.lines) == 2u);
+    COALESCE_STEP("depth multiline", vellum_command_undo_depth(fixture.stack) == 2u);
+    COALESCE_STEP("undo multiline", vellum_command_undo(fixture.stack, &error));
+    COALESCE_STEP("undo multiline text", check_text(&fixture, "abc", 3u));
+    COALESCE_STEP("redo multiline", vellum_command_redo(fixture.stack, &error));
+    COALESCE_STEP("redo multiline text", check_text(&fixture, "abc\nx", 5u));
+
+    COALESCE_STEP("delete breaks run", vellum_command_delete(fixture.stack, 3u, 2u, &error));
+    COALESCE_STEP("depth after delete", vellum_command_undo_depth(fixture.stack) == 3u);
+    COALESCE_STEP("insert after delete", vellum_command_insert(fixture.stack, 3u, "y", 1u, &error));
+    COALESCE_STEP("depth after insert", vellum_command_undo_depth(fixture.stack) == 4u);
+    COALESCE_STEP("non-adjacent insert", vellum_command_insert(fixture.stack, 0u, "z", 1u, &error));
+    COALESCE_STEP("depth non-adjacent", vellum_command_undo_depth(fixture.stack) == 5u);
+    COALESCE_STEP("final text", check_text(&fixture, "zabcy", 5u));
+
+    COALESCE_STEP("begin", vellum_command_begin(fixture.stack, &error));
+    COALESCE_STEP("transaction insert p",
+                  vellum_command_insert(fixture.stack, 5u, "p", 1u, &error));
+    COALESCE_STEP("transaction insert q",
+                  vellum_command_insert(fixture.stack, 6u, "q", 1u, &error));
+    COALESCE_STEP("commit", vellum_command_commit(fixture.stack, &error));
+    COALESCE_STEP("depth after transaction", vellum_command_undo_depth(fixture.stack) == 6u);
+    COALESCE_STEP("insert after transaction",
+                  vellum_command_insert(fixture.stack, 7u, "r", 1u, &error));
+    COALESCE_STEP("depth after transaction insert", vellum_command_undo_depth(fixture.stack) == 7u);
+    COALESCE_STEP("transaction text", check_text(&fixture, "zabcypqr", 8u));
+
+#undef COALESCE_STEP
+    fixture_destroy(&fixture);
+    return ok;
+}
+
 static bool differential_fuzz(void)
 {
     static const char *snippets[] = {"a", "b", "\n", "\r\n", "xy", "世界"};
@@ -250,6 +320,10 @@ static bool differential_fuzz(void)
         bool applied = false;
 
         if (choice < 80u && undo_count < MAX_HISTORY && model_length < MAX_TEXT / 2u) {
+            if (!break_coalescing(&fixture, &error)) {
+                ok = false;
+                break;
+            }
             save_state(undo_states, undo_lengths, &undo_count, model, model_length);
             redo_count = 0u;
             const size_t position = next_random(&state) % (model_length + 1u);
@@ -335,6 +409,10 @@ bool test_command(void)
     }
     if (!bounded_memory()) {
         fprintf(stderr, "command bounded_memory failed\n");
+        return false;
+    }
+    if (!coalescing()) {
+        fprintf(stderr, "command coalescing failed\n");
         return false;
     }
     if (!differential_fuzz()) {
