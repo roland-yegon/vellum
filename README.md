@@ -103,7 +103,12 @@ byte-bounded undo history, and adjacent-insert typing coalescing (a run of typin
 is undone at once); its tests cover undo/redo, commit/abort, memory eviction,
 coalescing, and a 10,000-operation differential fuzz against a naive string model
 with its own undo/redo history (also stress-run at 200,000 operations under
-ASan/UBSan). The cursor layer is not yet built.
+ASan/UBSan). A grapheme-aware cursor/selection layer adds boundary-snapped byte
+offsets, horizontal movement by extended grapheme cluster, logical-line vertical
+movement with a preserved column, selection extension, and edit remapping; its tests
+cover combining marks, emoji ZWJ sequences, LF/CRLF/CR crossing, invalid UTF-8
+fallback, and a 10,000-operation differential fuzz (also stress-run at 200,000
+operations under ASan/UBSan).
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence and
 [`docs/benchmarks/2026-11-19-text-frame.md`](docs/benchmarks/2026-11-19-text-frame.md)
 for the recorded benchmark data.

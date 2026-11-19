@@ -329,6 +329,11 @@ public API in `include/vellum/text/command.h`: inverse-operation insert/delete/r
 records, undo/redo, non-nested transactions, a byte-bounded undo history that
 discards oldest entries without disturbing order, and adjacent-insert typing
 coalescing (deletes, replacements, undo/redo, and transactions break the run).
+The cursor/selection layer is implemented in `src/text/cursor.c` with the public API in
+`include/vellum/text/cursor.h`: a caret and selection as byte offsets on ICU grapheme
+boundaries, grapheme-aware horizontal movement, logical-line vertical movement with a
+preserved desired column, and anchor/head remapping after edits. It borrows the buffer
+and line index; visual/wrapped-line movement waits for the layout-aware view.
 
 ### 7.6 Editor model
 
@@ -516,6 +521,7 @@ layout, the line cache, the multilingual demo screen, the retained widget tree a
 panels, typed config/themes, live config reload, and the text-frame benchmark are
 implemented and verified; see `ROADMAP.md` and
 [`benchmarks/2026-11-19-text-frame.md`](benchmarks/2026-11-19-text-frame.md). Phase 3
-is in progress with the standalone buffer core, line index, and command stack
-(including adjacent-insert typing coalescing) implemented and verified. The next
-increment is cursor/selection primitives.
+is in progress with the standalone buffer core, line index, command stack (including
+adjacent-insert typing coalescing), and grapheme-aware cursor/selection implemented and
+verified. The next increment is editing operations (tab/indent, smart backspace,
+auto-indent).

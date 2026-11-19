@@ -18,6 +18,7 @@ bool test_unicode(void);
 bool test_buffer(void);
 bool test_line_index(void);
 bool test_command(void);
+bool test_cursor(void);
 bool test_font(void);
 bool test_shape(void);
 bool test_layout(void);

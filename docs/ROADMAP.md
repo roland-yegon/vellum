@@ -324,8 +324,8 @@ exotic structure.
 
 ### Phase 3 status — in progress
 
-The standalone buffer core, line index, and command/undo stack are implemented and
-verified as the first Phase 3 increments:
+The standalone buffer core, line index, command/undo stack, and cursor/selection
+layer are implemented and verified as the first Phase 3 increments:
 
 - `vellum_text` now exposes a byte-oriented piece-table API in
   `include/vellum/text/buffer.h`: create/destroy, length and piece count, `read`,
@@ -374,10 +374,26 @@ verified as the first Phase 3 increments:
   and without newlines), and a 10,000-operation differential fuzz against a naive
   string model with its own undo/redo history. The same suite was additionally run at
   200,000 operations under ASan/UBSan as a stress check.
+- `vellum_text` also exposes `include/vellum/text/cursor.h`, a single caret and
+  selection over the buffer and line index. All offsets are UTF-8 bytes on extended
+  grapheme-cluster boundaries. Movement covers grapheme-aware left/right, logical-line
+  up/down (with a preserved desired column), line/buffer start and end, and selection
+  extension. Insert/delete notifications remap the anchor and head around edits. A
+  per-line ICU grapheme scan falls back to byte boundaries on invalid UTF-8. Visual
+  (wrapped) line movement is deferred to the layout-aware view.
+- `src/text/cursor.c` reuses scratch storage for one line's bytes and boundaries,
+  snapping set/select offsets and post-edit positions to grapheme boundaries. Vertical
+  movement stops before line terminators. A diagnostic validator checks both offsets
+  are on real grapheme boundaries.
+- Unit tests in `tests/unit/test_cursor.c` cover empty buffers, clamping, combining
+  marks, an emoji ZWJ sequence, LF/CRLF/CR line crossing, sticky-column vertical
+  movement, selection extension, edit remapping, invalid UTF-8 fallback, and a
+  10,000-operation differential fuzz against a contiguous-text model with a naive line
+  scanner. The same suite was additionally run at 200,000 operations under ASan/UBSan
+  as a stress check.
 
-Remaining Phase 3 increments (cursor/selection, editing operations, scrolling
-integration, and scale benchmarks) are not yet implemented;
-the phase exit criteria are therefore not yet met.
+Remaining Phase 3 increments (editing operations, scrolling integration, and scale
+benchmarks) are not yet implemented; the phase exit criteria are therefore not yet met.
 
 ---
 
@@ -583,6 +599,7 @@ config/themes, user overrides with live reload, and the text-frame benchmark wit
 recorded exit evidence (see above). Phase 3 has advanced with the standalone buffer
 core, line index, and command stack: a byte-oriented piece table indexed by an AVL
 tree, OOM-safe split/insert/delete, a flat-array line index with incremental updates,
-inverse-operation undo/redo with transactions, bounded memory, and adjacent-insert
-typing coalescing, plus differential fuzz tests. The next action is cursor/selection
-primitives, keeping all earlier builds, tests, and benchmarks green.
+inverse-operation undo/redo with transactions, bounded memory, adjacent-insert typing
+coalescing, and grapheme-aware cursor/selection with edit remapping, plus differential
+fuzz tests. The next action is editing operations (tab/indent, smart backspace,
+auto-indent), keeping all earlier builds, tests, and benchmarks green.
