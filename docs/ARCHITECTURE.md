@@ -234,8 +234,11 @@ Owned by `text/` + `graphics/`, independent of editor logic:
 
 Phase 2 status: step 1 is implemented in `src/text/unicode.c` using ICU 78.3. The
 `vellum_text` library validates UTF-8 with ICU's strict rules and iterates grapheme
-boundaries through `UText`/`UBRK_CHARACTER`. FreeType and HarfBuzz are the next
-increments.
+boundaries through `UText`/`UBRK_CHARACTER`. Step 3 is implemented in
+`src/graphics/font.c`: FreeType faces, an RGBA atlas with coverage in alpha, and a
+glyph cache. Pinned OFL fonts are bundled per
+[ADR-005](architecture/ADR-005-bundled-multilingual-fonts.md). HarfBuzz shaping is the
+next increment.
 
 `SDL3_ttf` is **not** part of the core pipeline: we use FreeType/HarfBuzz directly to
 control shaping and caching. The Makefile that referenced it was removed in Phase 1,
@@ -427,6 +430,7 @@ below is a non-normative summary; the ADR is authoritative wherever both cover a
 | libtsm first for terminal emulation, in-house fallback | State-machine-only C library, no UI coupling; gated evaluation | [ADR-002](architecture/ADR-002-terminal-emulation-libtsm-first.md) |
 | External tools for Git/search/build | Avoid reimplementing mature, optimized tools | this document |
 | Vellum itself is GPL-2.0-only; third-party components keep their own terms | Clear downstream obligations and preserves upstream notices | `LICENSE`, `README.md` |
+| Bundle pinned OFL fonts for reproducible multilingual text | Host lacks CJK/Arabic fonts and downloads at build time are not reproducible | [ADR-005](architecture/ADR-005-bundled-multilingual-fonts.md) |
 
 ---
 

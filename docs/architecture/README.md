@@ -12,6 +12,7 @@ new record that explicitly supersedes the old one.
 | [ADR-002](ADR-002-terminal-emulation-libtsm-first.md) | libtsm first for terminal emulation, scoped in-house fallback | Accepted (adoption gated on evaluation) |
 | [ADR-003](ADR-003-tree-sitter-vendored-and-pinned.md) | Vendored Tree-sitter runtime and pinned grammars | Accepted |
 | [ADR-004](ADR-004-rendering-sdl3-first-gpu-conditional.md) | SDL3 rendering first; GPU backend only when justified | Accepted |
+| [ADR-005](ADR-005-bundled-multilingual-fonts.md) | Bundle pinned OFL fonts for multilingual text | Accepted |
 
 Each record contains: Decision, Context, Alternatives considered, Consequences, and
 Conditions that justify revisiting. High-level design and module boundaries remain in

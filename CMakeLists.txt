@@ -47,12 +47,17 @@ find_package(SDL3 3.2.0 CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ICU_UC REQUIRED IMPORTED_TARGET icu-uc)
 
+# FreeType rasterizes atlas glyphs; HarfBuzz is added with the shaping increment.
+pkg_check_modules(FREETYPE2 REQUIRED IMPORTED_TARGET freetype2)
+
 enable_testing()
 
 # Shared build settings. Linking this interface target applies both warnings and
 # sanitizer flags to every first-party target.
 add_library(vellum_build_flags INTERFACE)
 target_compile_features(vellum_build_flags INTERFACE c_std_17)
+target_compile_definitions(vellum_build_flags INTERFACE
+    VELLUM_FONT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts")
 target_compile_options(vellum_build_flags INTERFACE ${VELLUM_WARNINGS} ${VELLUM_SANITIZE_FLAGS})
 target_link_options(vellum_build_flags INTERFACE ${VELLUM_SANITIZE_FLAGS})
 target_link_libraries(vellum_build_flags INTERFACE SDL3::SDL3)
@@ -72,8 +77,12 @@ target_link_libraries(vellum_text PUBLIC vellum_core vellum_build_flags PkgConfi
 
 add_library(vellum_graphics STATIC
     src/graphics/draw_list.c
+    src/graphics/font.c
     src/graphics/renderer_sdl.c)
-target_link_libraries(vellum_graphics PUBLIC vellum_core vellum_build_flags)
+target_link_libraries(vellum_graphics PUBLIC
+    vellum_core
+    vellum_build_flags
+    PkgConfig::FREETYPE2)
 
 add_library(vellum_platform STATIC
     src/platform/events.c
@@ -102,7 +111,8 @@ add_executable(vellum_unit_tests
     tests/unit/test_trace.c
     tests/unit/test_draw_list.c
     tests/unit/test_events.c
-    tests/unit/test_unicode.c)
+    tests/unit/test_unicode.c
+    tests/unit/test_font.c)
 target_include_directories(vellum_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(vellum_unit_tests PRIVATE
     vellum_platform

@@ -15,5 +15,6 @@ bool test_trace(void);
 bool test_draw_list(void);
 bool test_events(void);
 bool test_unicode(void);
+bool test_font(void);
 
 #endif /* VELLUM_TESTS_UNIT_TESTS_H */

@@ -165,10 +165,16 @@ The first increment is implemented and verified:
 - Unit tests cover ASCII, combining Latin, CJK, Devanagari (documenting ICU's current
   default rules), an emoji ZWJ sequence, a regional-indicator flag, embedded NUL,
   malformed encodings, invalid arguments, and the ICU `int32` length guard.
+- The FreeType glyph atlas is implemented in `vellum_graphics`: face loading, charmap
+  lookup, an RGBA atlas page with coverage in alpha, a hash-based glyph cache,
+  dirty tracking, and face metrics. Unit tests load all three bundled fonts and assert
+  Latin, CJK, and Arabic glyph coverage.
+- Pinned OFL-1.1 fonts and their notices are under `assets/fonts/`; the choice is
+  recorded in [ADR-005](architecture/ADR-005-bundled-multilingual-fonts.md).
 - Debug build and `ctest --preset debug` pass under ASan/UBSan with no warnings.
 
-Remaining Phase 2 work: FreeType atlas, HarfBuzz shaping and cache, theme/config,
-widgets/panels, and the multilingual demo screen.
+Remaining Phase 2 work: HarfBuzz shaping and cache, renderer texture support,
+theme/config, widgets/panels, and the multilingual demo screen.
 
 ---
 
