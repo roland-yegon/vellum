@@ -96,6 +96,7 @@ target_link_libraries(vellum_graphics PUBLIC
 
 add_library(vellum_config STATIC
     src/config/config.c
+    src/config/file_watcher.c
     src/config/json_util.c
     src/config/theme.c)
 target_link_libraries(vellum_config PUBLIC
@@ -135,7 +136,8 @@ add_executable(vellum_unit_tests
     tests/unit/test_font.c
     tests/unit/test_shape.c
     tests/unit/test_config.c
-    tests/unit/test_theme.c)
+    tests/unit/test_theme.c
+    tests/unit/test_paths.c)
 target_include_directories(vellum_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(vellum_unit_tests PRIVATE
     vellum_platform
@@ -162,3 +164,10 @@ target_link_libraries(vellum_renderer_texture_tests PRIVATE
     vellum_core
     vellum_build_flags)
 add_test(NAME renderer_textures COMMAND vellum_renderer_texture_tests)
+
+add_executable(vellum_file_watcher_tests tests/integration/test_file_watcher.c)
+target_link_libraries(vellum_file_watcher_tests PRIVATE
+    vellum_config
+    vellum_core
+    vellum_build_flags)
+add_test(NAME file_watcher COMMAND vellum_file_watcher_tests)

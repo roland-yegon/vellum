@@ -81,9 +81,24 @@ bool test_config(void)
         return false;
     }
     VellumSettings loaded = vellum_settings_default();
-    const bool ok = vellum_settings_load(&loaded, TEST_OUTPUT, &error) &&
-                    strcmp(loaded.theme, "light") == 0 && loaded.font_size == 20u &&
-                    !loaded.show_sidebar && !loaded.show_status_bar;
+    if (!vellum_settings_load(&loaded, TEST_OUTPUT, &error) || strcmp(loaded.theme, "light") != 0 ||
+        loaded.font_size != 20u || loaded.show_sidebar || loaded.show_status_bar) {
+        (void)remove(TEST_OUTPUT);
+        return false;
+    }
     (void)remove(TEST_OUTPUT);
-    return ok;
+
+    /* A later load layers over prior values: a partial override changes only the
+     * keys it contains, which is how user settings overlay shipped defaults. */
+    VellumSettings layered = vellum_settings_default();
+    if (!vellum_settings_load(&layered, path, &error) ||
+        !write_file(TEST_INPUT, "{\"theme\":\"light\"}") ||
+        !vellum_settings_load(&layered, TEST_INPUT, &error)) {
+        (void)remove(TEST_INPUT);
+        return false;
+    }
+    const bool layered_ok = strcmp(layered.theme, "light") == 0 && layered.font_size == 14u &&
+                            layered.show_sidebar && layered.show_status_bar;
+    (void)remove(TEST_INPUT);
+    return layered_ok;
 }

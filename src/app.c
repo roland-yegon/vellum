@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "vellum/config/config.h"
+#include "vellum/config/file_watcher.h"
 #include "vellum/config/theme.h"
 #include "vellum/core/log.h"
 #include "vellum/core/trace.h"
@@ -42,6 +43,10 @@ struct VellumApp {
     VellumTheme theme;
     VellumFontSystem *fonts;
     VellumTextureHandle atlas_texture;
+    VellumFileWatcher *watcher;
+    char settings_user_path[512];
+    char theme_dark_user_path[512];
+    char theme_light_user_path[512];
     const VellumGlyph *sample_glyphs[10u];
     VellumTrace trace;
     uint32_t app_event_base;
@@ -72,7 +77,7 @@ static bool post_startup_message(VellumApp *app, VellumErrorInfo *error)
     SDL_Event event;
     SDL_zero(event);
     event.type = app->app_event_base;
-    event.user.code = 1;
+    event.user.code = VELLUM_APPMSG_STARTUP;
     if (!SDL_PushEvent(&event)) {
         vellum_error_set_sdl(error, VELLUM_ERR_PLATFORM, "SDL_PushEvent");
         return false;
@@ -90,11 +95,21 @@ static void load_settings(VellumApp *app)
     const int written = snprintf(path, sizeof(path), "%s/settings.json", VELLUM_CONFIG_DIR);
     const bool path_ok = written >= 0 && (size_t)written < sizeof(path);
     if (!path_ok || !vellum_settings_load(&app->settings, path, &error)) {
-        VELLUM_LOG_WARN("config", "settings unavailable (%s); using defaults",
+        VELLUM_LOG_WARN("config", "shipped settings unavailable (%s); using compiled-in defaults",
                         path_ok ? vellum_error_message(&error) : "path is too long");
+    } else {
+        VELLUM_LOG_INFO("config", "settings loaded from %s", path);
+    }
+
+    if (app->settings_user_path[0] == '\0' || !vellum_path_exists(app->settings_user_path)) {
         return;
     }
-    VELLUM_LOG_INFO("config", "settings loaded from %s", path);
+    if (!vellum_settings_load(&app->settings, app->settings_user_path, &error)) {
+        VELLUM_LOG_WARN("config", "user settings ignored (%s); keeping shipped values",
+                        vellum_error_message(&error));
+    } else {
+        VELLUM_LOG_INFO("config", "settings overridden by %s", app->settings_user_path);
+    }
 }
 
 static bool theme_name_is_safe(const char *name)
@@ -112,6 +127,17 @@ static bool theme_name_is_safe(const char *name)
     return true;
 }
 
+static const char *user_theme_path(VellumApp *app, const char *name)
+{
+    if (strcmp(name, "light") == 0) {
+        return app->theme_light_user_path;
+    }
+    if (strcmp(name, "dark") == 0) {
+        return app->theme_dark_user_path;
+    }
+    return NULL;
+}
+
 static void load_theme(VellumApp *app, const char *name)
 {
     VellumErrorInfo error;
@@ -127,9 +153,24 @@ static void load_theme(VellumApp *app, const char *name)
         VELLUM_LOG_WARN("config", "theme '%s' unavailable (%s); using built-in fallback", name,
                         path_ok ? vellum_error_message(&error) : "unsafe theme name");
         app->theme = strcmp(name, "light") == 0 ? vellum_theme_light() : vellum_theme_dark();
+    } else {
+        VELLUM_LOG_INFO("config", "theme '%s' loaded from %s", vellum_theme_name(&app->theme),
+                        path);
+    }
+
+    const char *override = user_theme_path(app, name);
+    if (override == NULL || override[0] == '\0' || !vellum_path_exists(override)) {
         return;
     }
-    VELLUM_LOG_INFO("config", "theme '%s' loaded from %s", vellum_theme_name(&app->theme), path);
+    VellumTheme override_theme = app->theme;
+    if (!vellum_theme_load(&override_theme, override, &error)) {
+        VELLUM_LOG_WARN("config", "user theme '%s' ignored (%s); keeping shipped values", name,
+                        vellum_error_message(&error));
+        return;
+    }
+    app->theme = override_theme;
+    VELLUM_LOG_INFO("config", "theme '%s' overridden by %s", vellum_theme_name(&app->theme),
+                    override);
 }
 
 static bool add_bundled_font(VellumApp *app, const char *name, VellumErrorInfo *error)
@@ -143,6 +184,21 @@ static bool add_bundled_font(VellumApp *app, const char *name, VellumErrorInfo *
     return vellum_font_system_add_face(app->fonts, path, error) != VELLUM_FONT_NO_FACE;
 }
 
+static bool prepare_sample_glyphs(VellumApp *app, VellumErrorInfo *error)
+{
+    static const uint32_t faces[] = {1u, 1u, 1u, 2u, 2u, 3u, 3u, 3u, 3u, 3u};
+    static const uint32_t codepoints[] = {'A',     '!',     '=',     0x4E2Du, 0x6587u,
+                                          0x0645u, 0x0631u, 0x062Du, 0x0628u, 0x0627u};
+    for (size_t i = 0u; i < sizeof(faces) / sizeof(faces[0]); ++i) {
+        app->sample_glyphs[i] = vellum_font_system_glyph_for_char(
+            app->fonts, faces[i], codepoints[i], app->settings.font_size, error);
+        if (app->sample_glyphs[i] == NULL) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool prepare_fonts(VellumApp *app, VellumErrorInfo *error)
 {
     app->fonts = vellum_font_system_create(ATLAS_PAGE_SIZE, error);
@@ -154,16 +210,8 @@ static bool prepare_fonts(VellumApp *app, VellumErrorInfo *error)
         !add_bundled_font(app, "NotoSansArabic-Variable.ttf", error)) {
         return false;
     }
-
-    static const uint32_t faces[] = {1u, 1u, 1u, 2u, 2u, 3u, 3u, 3u, 3u, 3u};
-    static const uint32_t codepoints[] = {'A',     '!',     '=',     0x4E2Du, 0x6587u,
-                                          0x0645u, 0x0631u, 0x062Du, 0x0628u, 0x0627u};
-    for (size_t i = 0u; i < sizeof(faces) / sizeof(faces[0]); ++i) {
-        app->sample_glyphs[i] = vellum_font_system_glyph_for_char(
-            app->fonts, faces[i], codepoints[i], app->settings.font_size, error);
-        if (app->sample_glyphs[i] == NULL) {
-            return false;
-        }
+    if (!prepare_sample_glyphs(app, error)) {
+        return false;
     }
 
     uint32_t width = 0u;
@@ -176,6 +224,53 @@ static bool prepare_fonts(VellumApp *app, VellumErrorInfo *error)
     }
     vellum_font_system_atlas_clear_dirty(app->fonts);
     return true;
+}
+
+static bool compute_user_paths(VellumApp *app, VellumErrorInfo *error)
+{
+    if (!vellum_paths_user_config(app->settings_user_path, sizeof(app->settings_user_path),
+                                  "settings.json", error) ||
+        !vellum_paths_user_config(app->theme_dark_user_path, sizeof(app->theme_dark_user_path),
+                                  "themes/dark.json", error) ||
+        !vellum_paths_user_config(app->theme_light_user_path, sizeof(app->theme_light_user_path),
+                                  "themes/light.json", error)) {
+        vellum_error_set(error, VELLUM_ERR_INTERNAL, "could not compose user config paths");
+        return false;
+    }
+    return true;
+}
+
+static bool setup_watcher(VellumApp *app, VellumErrorInfo *error)
+{
+    app->watcher = vellum_file_watcher_create(app->app_event_base, VELLUM_APPMSG_CONFIG_RELOAD,
+                                              VELLUM_WATCH_DEFAULT_POLL_MS, error);
+    if (app->watcher == NULL) {
+        return false;
+    }
+    if (!vellum_file_watcher_add(app->watcher, app->settings_user_path, error) ||
+        !vellum_file_watcher_add(app->watcher, app->theme_dark_user_path, error) ||
+        !vellum_file_watcher_add(app->watcher, app->theme_light_user_path, error)) {
+        return false;
+    }
+    VELLUM_LOG_INFO("config", "watching user config files for changes");
+    return true;
+}
+
+static void reload_config(VellumApp *app)
+{
+    const uint32_t old_font_size = app->settings.font_size;
+    load_settings(app);
+    load_theme(app, app->settings.theme);
+    if (app->settings.font_size != old_font_size) {
+        VellumErrorInfo error;
+        if (!prepare_sample_glyphs(app, &error)) {
+            VELLUM_LOG_ERROR("config", "could not reload glyphs: %s", vellum_error_message(&error));
+            return;
+        }
+    }
+    VELLUM_LOG_INFO("config", "configuration reloaded (theme=%s, font size=%u)",
+                    vellum_theme_name(&app->theme), app->settings.font_size);
+    app->dirty = true;
 }
 
 VellumApp *vellum_app_create(VellumErrorInfo *error)
@@ -194,6 +289,10 @@ VellumApp *vellum_app_create(VellumErrorInfo *error)
     app->theme = vellum_theme_dark();
     app->fonts = NULL;
     app->atlas_texture = VELLUM_TEXTURE_NONE;
+    app->watcher = NULL;
+    app->settings_user_path[0] = '\0';
+    app->theme_dark_user_path[0] = '\0';
+    app->theme_light_user_path[0] = '\0';
     memset(app->sample_glyphs, 0, sizeof(app->sample_glyphs));
     app->app_event_base = 0u;
     app->last_log_tick = 0u;
@@ -229,9 +328,15 @@ VellumApp *vellum_app_create(VellumErrorInfo *error)
         vellum_error_set(error, VELLUM_ERR_ALLOC_FAILED, "could not allocate draw list");
         goto fail;
     }
+    if (!compute_user_paths(app, error)) {
+        goto fail;
+    }
     load_settings(app);
     load_theme(app, app->settings.theme);
     if (!prepare_fonts(app, error)) {
+        goto fail;
+    }
+    if (!setup_watcher(app, error)) {
         goto fail;
     }
     if (!post_startup_message(app, error)) {
@@ -273,14 +378,24 @@ static void handle_input(VellumApp *app, const VellumInput *input)
         VELLUM_LOG_DEBUG("input", "resized to %dx%d", app->width, app->height);
         break;
     case VELLUM_INPUT_APP_MESSAGE:
-        VELLUM_LOG_INFO("input", "application message %u", input->data.message.type);
-        app->dirty = true;
+        if (input->data.message.type == VELLUM_APPMSG_CONFIG_RELOAD) {
+            reload_config(app);
+        } else {
+            VELLUM_LOG_INFO("input", "application message %u", input->data.message.type);
+            app->dirty = true;
+        }
         break;
     case VELLUM_INPUT_TEXT:
         if (input->data.text.text[0] == 't' || input->data.text.text[0] == 'T') {
             const char *next = strcmp(app->settings.theme, "light") == 0 ? "dark" : "light";
             memcpy(app->settings.theme, next, strlen(next) + 1u);
             load_theme(app, next);
+            VellumErrorInfo error;
+            if (app->settings_user_path[0] != '\0' &&
+                !vellum_settings_save(&app->settings, app->settings_user_path, &error)) {
+                VELLUM_LOG_WARN("config", "could not persist theme: %s",
+                                vellum_error_message(&error));
+            }
             app->dirty = true;
             VELLUM_LOG_INFO("config", "theme switched to %s", vellum_theme_name(&app->theme));
         }
@@ -417,10 +532,18 @@ int vellum_app_run(VellumApp *app)
     return 0;
 }
 
+uint32_t vellum_app_event_base(const VellumApp *app)
+{
+    return app == NULL ? 0u : app->app_event_base;
+}
+
 void vellum_app_destroy(VellumApp *app)
 {
     if (app == NULL) {
         return;
+    }
+    if (app->watcher != NULL) {
+        vellum_file_watcher_destroy(app->watcher);
     }
     if (app->draw_list != NULL) {
         vellum_draw_list_destroy(app->draw_list);

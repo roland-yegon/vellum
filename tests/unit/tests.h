@@ -19,5 +19,6 @@ bool test_font(void);
 bool test_shape(void);
 bool test_config(void);
 bool test_theme(void);
+bool test_paths(void);
 
 #endif /* VELLUM_TESTS_UNIT_TESTS_H */

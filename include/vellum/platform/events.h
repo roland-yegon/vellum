@@ -47,6 +47,9 @@ typedef enum {
 
 #define VELLUM_TEXT_MAX 8
 
+/* Codes carried by SDL_Event.user.code / VellumMessage.type for app messages. */
+typedef enum { VELLUM_APPMSG_STARTUP = 1u, VELLUM_APPMSG_CONFIG_RELOAD = 2u } VellumAppMessage;
+
 typedef struct {
     VellumInputType type;
     union {

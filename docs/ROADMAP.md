@@ -200,11 +200,19 @@ Implemented increments, each built and tested before proceeding:
   round-trip, malformed JSON, unknown and duplicate keys, wrong types, and out-of-range
   values. The app loads settings/themes with compiled-in fallbacks, drives every scene
   colour from theme tokens, and switches themes with `T` via the input event path.
+- User overrides are composed under the SDL preferences directory and layered over the
+  shipped defaults: settings overlay key-by-key, while a user theme fully replaces its
+  shipped counterpart. A malformed override is reported and ignored, keeping the last
+  valid values. `VellumFileWatcher` polls file content hashes on one fixed worker and
+  posts an app event on change; the main thread reloads config and regenerates glyphs
+  when the font size changes. `T` persists the theme choice to the user settings file.
+  Unit tests cover path composition and layering; an integration test verifies that a
+  file rewrite produces an app event, and the app-events test covers the reload message.
 - Debug, release, and bench presets build and pass `ctest` (unit, app events, renderer
-  textures); debug runs under ASan/UBSan, and `clang-format --dry-run --Werror` is clean.
+  textures, file watcher); debug runs under ASan/UBSan, and `clang-format --dry-run
+  --Werror` is clean.
 
-Remaining Phase 2 work: user override files and reload-on-change, widgets/panels, and
-the multilingual demo screen.
+Remaining Phase 2 work: widgets/panels and the multilingual demo screen.
 
 ---
 
@@ -441,6 +449,6 @@ To keep the project honest, these are explicitly **not** early work:
 ## 4. Immediate next action
 
 Phase 1 is complete and verified. In Phase 2, ICU validation/graphemes, the FreeType
-atlas, HarfBuzz shaping, renderer texture support, atlas upload, and typed config/themes
-are complete and tested. Next add user override files and reload-on-change, widgets/panels,
-and the multilingual demo screen.
+atlas, HarfBuzz shaping, renderer texture support, atlas upload, typed config/themes, and
+user overrides with live reload are complete and tested. Next add widgets/panels and the
+multilingual demo screen.

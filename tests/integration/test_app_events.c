@@ -10,6 +10,7 @@
 #include "vellum/app.h"
 #include "vellum/core/error.h"
 #include "vellum/core/log.h"
+#include "vellum/platform/events.h"
 
 static bool push_event(SDL_Event *event)
 {
@@ -20,7 +21,7 @@ static bool push_event(SDL_Event *event)
     return true;
 }
 
-static bool run_until_quit(const char *name, SDL_Event *first, SDL_Event *second)
+static bool run_until_quit(const char *name, SDL_Event *first, SDL_Event *second, bool reload)
 {
     VellumErrorInfo error;
     VellumApp *app = vellum_app_create(&error);
@@ -31,6 +32,16 @@ static bool run_until_quit(const char *name, SDL_Event *first, SDL_Event *second
     if (!push_event(first) || (second != NULL && !push_event(second))) {
         vellum_app_destroy(app);
         return false;
+    }
+    if (reload) {
+        SDL_Event message;
+        SDL_zero(message);
+        message.type = vellum_app_event_base(app);
+        message.user.code = VELLUM_APPMSG_CONFIG_RELOAD;
+        if (!push_event(&message)) {
+            vellum_app_destroy(app);
+            return false;
+        }
     }
 
     const int result = vellum_app_run(app);
@@ -71,10 +82,11 @@ int main(void)
     toggle_theme.text.text = "t";
 
     bool ok = true;
-    ok = run_until_quit("escape", &escape, NULL) && ok;
-    ok = run_until_quit("close request", &close_request, NULL) && ok;
-    ok = run_until_quit("resize then escape", &resize, &escape) && ok;
-    ok = run_until_quit("theme toggle then escape", &toggle_theme, &escape) && ok;
+    ok = run_until_quit("escape", &escape, NULL, false) && ok;
+    ok = run_until_quit("close request", &close_request, NULL, false) && ok;
+    ok = run_until_quit("resize then escape", &resize, &escape, false) && ok;
+    ok = run_until_quit("theme toggle then escape", &toggle_theme, &escape, false) && ok;
+    ok = run_until_quit("config reload then escape", &escape, NULL, true) && ok;
 
     vellum_log_shutdown();
     printf("%s\n", ok ? "app event integration: PASS" : "app event integration: FAIL");

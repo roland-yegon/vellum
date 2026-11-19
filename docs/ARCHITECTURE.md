@@ -327,8 +327,11 @@ A **retained widget tree with immediate-mode draw-list emission**:
   workers, never on the UI thread. See [ADR-001](architecture/ADR-001-json-parsing-yyjson.md).
   Implemented: `vellum_config` wraps yyjson with typed settings and theme tokens, a
   1 MiB read bound, strict unknown/duplicate-key checks, and path-qualified parse
-  errors. Settings and dark/light theme defaults ship in `config/`. User override
-  files and file-change reload are still pending.
+  errors. Settings and dark/light theme defaults ship in `config/`. User overrides in
+  the SDL preferences directory layer over the shipped defaults, and `VellumFileWatcher`
+  polls their content hashes on one fixed worker, posting an app event on change so the
+  main thread reloads config without blocking. Invalid overrides are ignored and the
+  last valid values are kept.
 - **Filesystem/project:** workspace root, async directory enumeration, file watches,
   safe create/rename/delete with confirmation and error reporting.
 - **Search:** in-file search uses the buffer directly (regex via a small C regex engine
@@ -449,4 +452,5 @@ below is a non-normative summary; the ADR is authoritative wherever both cover a
 
 **Next step:** continue Phase 2 (Native UI and text foundation) with widgets/panels
 and the multilingual demo screen. ICU, FreeType, HarfBuzz, renderer textures, atlas
-upload, and typed config/themes are implemented and verified; see `ROADMAP.md`.
+upload, typed config/themes, and live config reload are implemented and verified; see
+`ROADMAP.md`.
