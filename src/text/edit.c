@@ -394,6 +394,72 @@ bool vellum_editor_insert_text(VellumEditor *editor, const char *text, size_t le
     return replace_selection(editor, text, length, error);
 }
 
+bool vellum_editor_move_range(VellumEditor *editor, size_t start, size_t end, size_t target,
+                              VellumErrorInfo *error)
+{
+    vellum_error_init(error);
+    if (editor == NULL) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "move needs an editor");
+        return false;
+    }
+    const size_t total = vellum_buffer_length(editor->buffer);
+    if (start > end || end > total || target > total) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "move range is out of bounds");
+        return false;
+    }
+    if (start == end || (target >= start && target <= end)) {
+        return true;
+    }
+
+    const size_t length = end - start;
+    char *text = malloc(length);
+    if (text == NULL) {
+        vellum_error_set(error, VELLUM_ERR_ALLOC_FAILED, "could not read the moved text");
+        return false;
+    }
+    if (!vellum_buffer_read(editor->buffer, start, text, length, error)) {
+        free(text);
+        return false;
+    }
+
+    /* Offsets after the removed range shift down by its length. */
+    const size_t destination = target < start ? target : target - length;
+    bool ok = false;
+    if (vellum_command_begin(editor->commands, error)) {
+        ok = vellum_command_delete(editor->commands, start, length, error);
+        if (ok) {
+            ok = vellum_command_insert(editor->commands, destination, text, length, error);
+        }
+        if (ok) {
+            ok = vellum_command_commit(editor->commands, error);
+        } else {
+            (void)vellum_command_abort(editor->commands, error);
+        }
+    }
+    if (ok) {
+        ok = vellum_cursor_notify_delete(editor->cursor, start, length, error) &&
+             vellum_cursor_notify_insert(editor->cursor, destination, length, error) &&
+             vellum_cursor_select(editor->cursor, destination, destination + length, error);
+    }
+    free(text);
+    return ok;
+}
+
+bool vellum_editor_move_selection(VellumEditor *editor, size_t target, VellumErrorInfo *error)
+{
+    vellum_error_init(error);
+    if (editor == NULL) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "move needs an editor");
+        return false;
+    }
+    if (!vellum_cursor_has_selection(editor->cursor)) {
+        vellum_error_set(error, VELLUM_ERR_INVALID_ARGUMENT, "move needs a non-empty selection");
+        return false;
+    }
+    return vellum_editor_move_range(editor, vellum_cursor_selection_start(editor->cursor),
+                                    vellum_cursor_selection_end(editor->cursor), target, error);
+}
+
 static bool copy_selection(const VellumEditor *editor, char **out_text, size_t *out_length,
                            VellumErrorInfo *error)
 {

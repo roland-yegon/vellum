@@ -126,7 +126,10 @@ deferred. Bracket completion adds configurable single-byte pairs (default `()`, 
 `{}`, `""`, `''`) with auto-close, type-over, selection wrapping with inner reselection,
 and empty-pair backspace, all routed through the command stack as single undo entries;
 its tests cover configuration, undo/redo, symmetric quotes, nesting, and a differential
-fuzz. A text-buffer scale benchmark measures a 100 MB open (~166 ms) and
+fuzz. Drag-and-drop text movement relocates a range (or the current selection) to a
+pre-move target offset as one undoable command-stack transaction, treats drop-inside as
+a no-op, and reselects the moved text; mouse gesture wiring is deferred. A text-buffer
+scale benchmark measures a 100 MB open (~166 ms) and
 1M-line end typing (~25 µs p95),
 both within the §10 targets, with a random-edit stress case that documents the
 current flat line-index cost on middle edits.

@@ -843,6 +843,176 @@ static bool bracket_differential_fuzz(void)
     return ok;
 }
 
+static bool move_text(void)
+{
+    Fixture fixture;
+    if (!fixture_init(&fixture, "abcdef", 6u)) {
+        return false;
+    }
+    VellumErrorInfo error;
+    vellum_error_init(&error);
+    bool ok = true;
+#define EDIT_STEP(name, expr)                                                                      \
+    do {                                                                                           \
+        if (ok && !(expr)) {                                                                       \
+            fprintf(stderr, "edit move %s failed: %s\n", name, vellum_error_message(&error));      \
+            ok = false;                                                                            \
+        }                                                                                          \
+    } while (0)
+
+    /* Move a selection earlier; the moved bytes stay selected. */
+    EDIT_STEP("select de", vellum_cursor_select(fixture.cursor, 3u, 5u, &error));
+    EDIT_STEP("move earlier", vellum_editor_move_selection(fixture.editor, 1u, &error));
+    EDIT_STEP("earlier text", check_text(&fixture, "adebcf", 6u));
+    EDIT_STEP("earlier selection", check_selection(&fixture, 1u, 3u, "earlier selection"));
+    EDIT_STEP("undo move", vellum_editor_undo(fixture.editor, &error));
+    EDIT_STEP("undo text", check_text(&fixture, "abcdef", 6u));
+    EDIT_STEP("redo move", vellum_editor_redo(fixture.editor, &error));
+    EDIT_STEP("redo text", check_text(&fixture, "adebcf", 6u));
+
+    /* Move a selection later; the target is in pre-move coordinates. */
+    fixture_destroy(&fixture);
+    if (!fixture_init(&fixture, "abcdef", 6u)) {
+        return false;
+    }
+    EDIT_STEP("select bc", vellum_cursor_select(fixture.cursor, 1u, 3u, &error));
+    EDIT_STEP("move later", vellum_editor_move_selection(fixture.editor, 5u, &error));
+    EDIT_STEP("later text", check_text(&fixture, "adebcf", 6u));
+    EDIT_STEP("later selection", check_selection(&fixture, 3u, 5u, "later selection"));
+
+    /* Move to the very front and to the very back. */
+    fixture_destroy(&fixture);
+    if (!fixture_init(&fixture, "abcdef", 6u)) {
+        return false;
+    }
+    EDIT_STEP("select ef", vellum_cursor_select(fixture.cursor, 4u, 6u, &error));
+    EDIT_STEP("move front", vellum_editor_move_selection(fixture.editor, 0u, &error));
+    EDIT_STEP("front text", check_text(&fixture, "efabcd", 6u));
+    EDIT_STEP("front selection", check_selection(&fixture, 0u, 2u, "front selection"));
+    fixture_destroy(&fixture);
+    if (!fixture_init(&fixture, "abcdef", 6u)) {
+        return false;
+    }
+    EDIT_STEP("select ab", vellum_cursor_select(fixture.cursor, 0u, 2u, &error));
+    EDIT_STEP("move back", vellum_editor_move_selection(fixture.editor, 6u, &error));
+    EDIT_STEP("back text", check_text(&fixture, "cdefab", 6u));
+    EDIT_STEP("back selection", check_selection(&fixture, 4u, 6u, "back selection"));
+
+    /* Dropping inside the selection is a no-op that preserves it. */
+    fixture_destroy(&fixture);
+    if (!fixture_init(&fixture, "abcdef", 6u)) {
+        return false;
+    }
+    EDIT_STEP("select cd", vellum_cursor_select(fixture.cursor, 2u, 4u, &error));
+    EDIT_STEP("drop inside", vellum_editor_move_selection(fixture.editor, 3u, &error));
+    EDIT_STEP("unchanged text", check_text(&fixture, "abcdef", 6u));
+    EDIT_STEP("unchanged selection", check_selection(&fixture, 2u, 4u, "unchanged selection"));
+    EDIT_STEP("drop at start", vellum_editor_move_selection(fixture.editor, 2u, &error));
+    EDIT_STEP("drop at end", vellum_editor_move_selection(fixture.editor, 4u, &error));
+    EDIT_STEP("still unchanged", check_text(&fixture, "abcdef", 6u));
+
+    /* An explicit range moves independently of the current selection. */
+    fixture_destroy(&fixture);
+    if (!fixture_init(&fixture, "abcdef", 6u)) {
+        return false;
+    }
+    EDIT_STEP("explicit range", vellum_editor_move_range(fixture.editor, 2u, 4u, 6u, &error));
+    EDIT_STEP("range text", check_text(&fixture, "abefcd", 6u));
+    EDIT_STEP("range selection", check_selection(&fixture, 4u, 6u, "range selection"));
+
+    /* A collapsed caret is not draggable. */
+    vellum_cursor_collapse(fixture.cursor);
+    if (vellum_editor_move_selection(fixture.editor, 0u, &error) ||
+        error.code != VELLUM_ERR_INVALID_ARGUMENT) {
+        fprintf(stderr, "edit move should reject a collapsed caret\n");
+        ok = false;
+    }
+
+    /* Bounds and NULL handling. */
+    if (vellum_editor_move_range(fixture.editor, 4u, 2u, 0u, &error) ||
+        error.code != VELLUM_ERR_INVALID_ARGUMENT ||
+        vellum_editor_move_range(fixture.editor, 0u, 7u, 0u, &error) ||
+        error.code != VELLUM_ERR_INVALID_ARGUMENT ||
+        vellum_editor_move_range(fixture.editor, 0u, 2u, 7u, &error) ||
+        error.code != VELLUM_ERR_INVALID_ARGUMENT ||
+        vellum_editor_move_range(fixture.editor, 0u, 0u, 3u, &error) == false ||
+        vellum_editor_move_range(NULL, 0u, 1u, 2u, &error) ||
+        vellum_editor_move_selection(NULL, 0u, &error)) {
+        fprintf(stderr, "edit move bounds/NULL handling failed\n");
+        ok = false;
+    }
+
+#undef EDIT_STEP
+    fixture_destroy(&fixture);
+    return ok;
+}
+
+static bool move_differential_fuzz(void)
+{
+    Fixture fixture;
+    if (!fixture_init(&fixture, "abcdefghij", 10u)) {
+        return false;
+    }
+    char model[16] = "abcdefghij";
+    size_t length = 10u;
+    size_t anchor = 0u;
+    size_t head = 0u;
+    uint32_t state = 0x0D0A5EEDu;
+    VellumErrorInfo error;
+    vellum_error_init(&error);
+    bool ok = true;
+
+    for (uint32_t op = 0u; op < 5000u && ok; ++op) {
+        vellum_error_init(&error);
+        /* Give the editor a known selection matching the model. */
+        if (!vellum_cursor_select(fixture.cursor, anchor, head, &error)) {
+            fprintf(stderr, "edit move fuzz select failed at op %u: %s\n", op,
+                    vellum_error_message(&error));
+            ok = false;
+            break;
+        }
+        const size_t start = next_random(&state) % (length + 1u);
+        const size_t end = start + next_random(&state) % (length - start + 1u);
+        const size_t target = next_random(&state) % (length + 1u);
+
+        bool no_op = start == end || (target >= start && target <= end);
+        if (!no_op) {
+            const size_t moved = end - start;
+            const size_t destination = target < start ? target : target - moved;
+            char bytes[16u];
+            memcpy(bytes, model + start, moved);
+            memmove(model + start, model + end, length - end);
+            memmove(model + destination + moved, model + destination, length - moved - destination);
+            memcpy(model + destination, bytes, moved);
+            anchor = destination;
+            head = destination + moved;
+        }
+        model[length] = '\0';
+
+        if (!vellum_editor_move_range(fixture.editor, start, end, target, &error)) {
+            fprintf(stderr, "edit move fuzz move failed at op %u: %s\n", op,
+                    vellum_error_message(&error));
+            ok = false;
+            break;
+        }
+        if (!check_text(&fixture, model, length) ||
+            (anchor == head ? !check_position(&fixture, head, "move fuzz caret")
+                            : !check_selection(&fixture, anchor, head, "move fuzz selection"))) {
+            fprintf(stderr, "edit move fuzz state failed at op %u (start=%zu end=%zu target=%zu)\n",
+                    op, start, end, target);
+            ok = false;
+            break;
+        }
+    }
+
+    if (ok && !vellum_editor_validate(fixture.editor, &error)) {
+        fprintf(stderr, "edit move fuzz final validate failed: %s\n", vellum_error_message(&error));
+        ok = false;
+    }
+    fixture_destroy(&fixture);
+    return ok;
+}
+
 static bool configuration_and_validation(void)
 {
     Fixture fixture;
@@ -1062,6 +1232,14 @@ bool test_edit(void)
     }
     if (!bracket_differential_fuzz()) {
         fprintf(stderr, "edit bracket_differential_fuzz failed\n");
+        return false;
+    }
+    if (!move_text()) {
+        fprintf(stderr, "edit move_text failed\n");
+        return false;
+    }
+    if (!move_differential_fuzz()) {
+        fprintf(stderr, "edit move_differential_fuzz failed\n");
         return false;
     }
     if (!configuration_and_validation()) {

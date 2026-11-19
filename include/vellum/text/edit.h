@@ -73,6 +73,20 @@ bool vellum_editor_type_char(VellumEditor *editor, char ch, VellumErrorInfo *err
 bool vellum_editor_insert_text(VellumEditor *editor, const char *text, size_t length,
                                VellumErrorInfo *error);
 
+/* Moves the byte range [start, end) so it is inserted before the original
+ * offset `target` (all three offsets are in the pre-move buffer). Dropping
+ * inside the range is a no-op that leaves the buffer and selection unchanged;
+ * so is an empty range. On a real move the bytes are deleted and reinserted
+ * as one command-stack transaction (one undo entry), and the moved text is
+ * reselected forward. Offsets must satisfy start <= end <= length and
+ * target <= length. */
+bool vellum_editor_move_range(VellumEditor *editor, size_t start, size_t end, size_t target,
+                              VellumErrorInfo *error);
+
+/* Drag-and-drop convenience: moves the current selection to `target`, keeping
+ * the moved text selected. Requires a non-empty selection. */
+bool vellum_editor_move_selection(VellumEditor *editor, size_t target, VellumErrorInfo *error);
+
 /* Clipboard support stays SDL-free here: the platform layer owns the system
  * clipboard and passes its text to `paste`/`insert_text`.
 

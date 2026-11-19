@@ -361,8 +361,12 @@ edit/command-transaction layer and is deferred. Bracket completion lives in the
 byte as one undo entry, steps over a duplicated closer, and wraps a selection in one
 transaction while reselecting the inner text, and backspace removes an empty adjacent
 pair before its normal grapheme/outdent logic. It stays language-agnostic; language rules
-and bracket matching/highlighting remain deferred. App-level keybindings and editor-state
-ownership are deferred to the editor-experience phase. Drag-and-drop remains deferred.
+and bracket matching/highlighting remain deferred. Drag-and-drop text movement is the
+SDL-free `vellum_editor_move_range` / `vellum_editor_move_selection` operations in the same
+layer: [start, end) is deleted and reinserted before a pre-move `target` offset as one
+command-stack transaction (one undo entry), dropping inside the range is a no-op, and the
+moved text is reselected. Mouse gesture wiring is deferred with the other app-level
+keybindings and editor-state ownership to the editor-experience phase.
 
 ### 7.6 Editor model
 
@@ -556,7 +560,8 @@ adjacent-insert typing coalescing), grapheme-aware cursor/selection, editing ope
 indent/outdent), SDL-backed clipboard support (text-level copy/cut/paste plus a platform
 wrapper), a layout-independent scrolling model over the line index, multiple cursors as a
 remapped caret set, configurable bracket completion (auto-close, type-over, selection
-wrapping, empty-pair backspace), and scale benchmarks (100 MB open and 1M-line end typing
-meet the §10 targets) implemented and verified; see
+wrapping, empty-pair backspace), drag-and-drop text movement (transactional move with
+no-op drop-inside), and scale benchmarks (100 MB open and 1M-line end typing meet the
+§10 targets) implemented and verified; see
 [`benchmarks/2026-11-19-text-buffer-scale.md`](benchmarks/2026-11-19-text-buffer-scale.md).
-The next increment is drag-and-drop text movement.
+The next increment is scrollbar rendering and editor text clipping.

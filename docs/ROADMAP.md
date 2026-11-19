@@ -398,8 +398,8 @@ layer are implemented and verified as the first Phase 3 increments:
   current line, and indent/outdent of every logical line touched by the selection.
   Every operation goes through the command stack and notifies the cursor, so each call
   is one undo entry; undo/redo wrappers clamp and re-snap the caret. The indent unit is
-  configurable (default four spaces). Drag-and-drop, applying a single edit at all carets,
-  and wrapped/visual-line movement remain deferred.
+  configurable (default four spaces). Applying a single edit at all carets and
+  wrapped/visual-line movement remain deferred.
 - Bracket completion is built into `vellum_text` with the `VellumBracketPair` type and
   `vellum_bracket_defaults` in `include/vellum/text/edit.h`. `vellum_editor_set_bracket_pairs`
   configures up to `VELLUM_BRACKET_MAX_PAIRS` single-byte pairs (default `()`, `[]`, `{}`,
@@ -420,6 +420,16 @@ layer are implemented and verified as the first Phase 3 increments:
   pair configuration, auto-close/type-over with undo/redo, symmetric quotes, nesting,
   selection wrapping with inner reselection, empty-pair backspace (including inside
   leading whitespace), and a 5,000-operation differential fuzz against a naive ASCII model.
+  Move tests cover earlier/later/front/back drags in pre-move coordinates, undo/redo,
+  no-op drop-inside, explicit ranges independent of the current selection, bounds/NULL
+  handling, and a 5,000-operation differential fuzz against a naive contiguous-string model.
+- Drag-and-drop text movement is SDL-free in the same editing layer:
+  `vellum_editor_move_range` deletes [start, end) and reinserts it before a pre-move
+  `target` offset as one command-stack transaction (one undo entry), adjusting the
+  destination for the removed length; `vellum_editor_move_selection` is the convenience
+  wrapper over the current selection. Dropping inside the range (or an empty range) is a
+  no-op, and the moved text is reselected forward. Mouse gesture wiring is deferred to
+  the editor-experience phase with the other app-level keybindings.
 - Clipboard support is split across two layers. `vellum_text` adds SDL-free
   `vellum_editor_copy`, `vellum_editor_cut`, and `vellum_editor_paste`: copy reads the
   selected byte range into a caller-owned NUL-terminated allocation (reporting the exact
@@ -466,8 +476,8 @@ layer are implemented and verified as the first Phase 3 increments:
   line insert/delete. The two-level index remains deferred. Full numbers and verdicts
   are in [`benchmarks/2026-11-19-text-buffer-scale.md`](benchmarks/2026-11-19-text-buffer-scale.md).
 
-Remaining Phase 3 increments (drag-and-drop and scrollbar rendering) are not yet
-implemented; the phase exit criteria are therefore not yet met.
+Remaining Phase 3 increments (scrollbar rendering and editor text clipping) are not
+yet implemented; the phase exit criteria are therefore not yet met.
 
 ---
 
@@ -679,7 +689,8 @@ coalescing, grapheme-aware cursor/selection with edit remapping, editing operati
 indent/outdent), SDL-backed clipboard support via a text-level copy/cut/paste API and a
 platform clipboard wrapper, a layout-independent scrolling model over the line index,
 multiple cursors as a remapped caret set, configurable bracket completion (auto-close,
-type-over, selection wrapping, empty-pair backspace), and scale benchmarks with recorded
-exit evidence (100 MB open and 1M-line end typing both pass), plus differential fuzz tests.
-The next actions are drag-and-drop text movement and scrollbar rendering, keeping all
-earlier builds, tests, and benchmarks green.
+type-over, selection wrapping, empty-pair backspace), drag-and-drop text movement
+(transactional move with no-op drop-inside), and scale benchmarks with recorded exit
+evidence (100 MB open and 1M-line end typing both pass), plus differential fuzz tests.
+The next action is scrollbar rendering and editor text clipping, keeping all earlier
+builds, tests, and benchmarks green.
