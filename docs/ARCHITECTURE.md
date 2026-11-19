@@ -250,8 +250,8 @@ placed from its right edge because HarfBuzz 15 reports visual-order glyphs with 
 advances. Typed settings and semantic light/dark theme tokens load from `config/` with
 strict parse errors and compiled-in fallbacks; the app uses those tokens for every
 scene colour and renders a static multilingual demo screen (Latin, CJK, Arabic, mixed
-fallback) through the layout API. Line caching, widgets, and panels are the next
-increments.
+fallback) through the layout API. The retained widget tree and concrete panels are now
+implemented (§7.7); line caching is the next text increment.
 
 `SDL3_ttf` is **not** part of the core pipeline: we use FreeType/HarfBuzz directly to
 control shaping and caching. The Makefile that referenced it was removed in Phase 1,
@@ -324,6 +324,18 @@ A **retained widget tree with immediate-mode draw-list emission**:
   not raw widget colours. Light/dark themes are data, not code paths.
 - Activity bar, sidebar, editor area, bottom panel, minimap, and status bar are panels
   whose visibility and size are configurable.
+
+Implemented in `src/ui/`: `widget.c` owns the opaque tree, constraint measurement,
+recursive layout/paint, visibility, dirty propagation, focus/tab order, hit-testing,
+hover, and pointer capture (a pressed widget keeps receiving motion until release).
+`panels.c` builds the concrete activity bar, sidebar, splitter, tab strip, editor area,
+and status bar, paints them from semantic theme tokens (text labels are skipped when
+text resources are absent, keeping layout tests independent of the font pipeline), and
+handles splitter drag/keyboard resize, activity-bar sidebar toggle, and tab switching.
+`VellumUiState` is app-owned; `vellum_ui_apply_settings()` mirrors settings visibility
+and reloads it on config change. The app dispatches pointer/key/text input into the
+root, relayouts every rendered frame, and positions the demo text inside the editor
+panel's bounds.
 
 ### 7.8 Services
 
@@ -457,7 +469,8 @@ below is a non-normative summary; the ADR is authoritative wherever both cover a
 
 ---
 
-**Next step:** continue Phase 2 (Native UI and text foundation) with the widgets/panels
-foundation. ICU, FreeType, HarfBuzz, renderer textures, atlas upload, single-line text
-layout, the multilingual demo screen, typed config/themes, and live config reload are
-implemented and verified; see `ROADMAP.md`.
+**Next step:** continue Phase 2 (Native UI and text foundation) with the outstanding
+exit-criteria evidence: DPI/scale re-rasterization, the 1,000-glyph frame-cost check,
+and line caching. ICU, FreeType, HarfBuzz, renderer textures, atlas upload, single-line
+text layout, the multilingual demo screen, the retained widget tree and panels, typed
+config/themes, and live config reload are implemented and verified; see `ROADMAP.md`.

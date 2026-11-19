@@ -26,6 +26,8 @@
 #include "vellum/platform/paths.h"
 #include "vellum/platform/signals.h"
 #include "vellum/platform/window.h"
+#include "vellum/ui/panels.h"
+#include "vellum/ui/widget.h"
 
 #define ATLAS_PAGE_SIZE 512u
 
@@ -46,6 +48,8 @@ struct VellumApp {
     VellumFontSystem *fonts;
     VellumShaper *shaper;
     VellumTextureHandle atlas_texture;
+    VellumUiState ui_state;
+    VellumWidget *ui_root;
     VellumFileWatcher *watcher;
     char settings_user_path[512];
     char theme_dark_user_path[512];
@@ -248,6 +252,10 @@ static void reload_config(VellumApp *app)
 {
     load_settings(app);
     load_theme(app, app->settings.theme);
+    if (app->ui_root != NULL) {
+        vellum_ui_apply_settings(app->ui_root, &app->ui_state, app->settings.show_sidebar,
+                                 app->settings.show_status_bar);
+    }
     VELLUM_LOG_INFO("config", "configuration reloaded (theme=%s, font size=%u)",
                     vellum_theme_name(&app->theme), app->settings.font_size);
     app->dirty = true;
@@ -270,6 +278,8 @@ VellumApp *vellum_app_create(VellumErrorInfo *error)
     app->fonts = NULL;
     app->shaper = NULL;
     app->atlas_texture = VELLUM_TEXTURE_NONE;
+    app->ui_state = vellum_ui_state_default();
+    app->ui_root = NULL;
     app->watcher = NULL;
     app->settings_user_path[0] = '\0';
     app->theme_dark_user_path[0] = '\0';
@@ -313,6 +323,12 @@ VellumApp *vellum_app_create(VellumErrorInfo *error)
     }
     load_settings(app);
     load_theme(app, app->settings.theme);
+    app->ui_root = vellum_ui_create(&app->ui_state, error);
+    if (app->ui_root == NULL) {
+        goto fail;
+    }
+    vellum_ui_apply_settings(app->ui_root, &app->ui_state, app->settings.show_sidebar,
+                             app->settings.show_status_bar);
     if (!prepare_fonts(app, error)) {
         goto fail;
     }
@@ -339,8 +355,27 @@ fail:
     return NULL;
 }
 
+static void app_ui_context(VellumApp *app, VellumUiContext *ctx)
+{
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->draw_list = app->draw_list;
+    ctx->theme = &app->theme;
+    ctx->shaper = app->shaper;
+    ctx->fonts = app->fonts;
+    ctx->atlas_texture = app->atlas_texture;
+    ctx->font_size = app->settings.font_size;
+}
+
 static void handle_input(VellumApp *app, const VellumInput *input)
 {
+    if (app->ui_root != NULL) {
+        VellumUiContext ui_ctx;
+        app_ui_context(app, &ui_ctx);
+        if (vellum_widget_dispatch_event(app->ui_root, input, &ui_ctx)) {
+            app->dirty = true;
+        }
+    }
+
     switch (input->type) {
     case VELLUM_INPUT_QUIT:
         app->quit = true;
@@ -426,7 +461,7 @@ static bool layout_demo_line(VellumApp *app, const char *text, float x, float ba
                                    strlen(text), font_size, NULL, error);
 }
 
-static bool build_demo_text(VellumApp *app, VellumErrorInfo *error)
+static bool build_demo_text(VellumApp *app, VellumBounds area, VellumErrorInfo *error)
 {
     static const char title[] = "Vellum Text Foundation";
     static const char subtitle[] = "ICU + HarfBuzz + FreeType + SDL3";
@@ -443,27 +478,39 @@ static bool build_demo_text(VellumApp *app, VellumErrorInfo *error)
     static const char hint[] = "T: theme    Esc: quit";
 
     const uint32_t size = app->settings.font_size;
-    const float label_x = 200.0f;
-    const float text_x = 340.0f;
-    const float text_box = 520.0f;
+    const bool wide = area.width > 360.0f;
+    const float label_x = area.x + 16.0f;
+    const float text_x = wide ? area.x + 150.0f : label_x;
+    const float right_edge = area.x + area.width - 16.0f;
+    const float text_box = right_edge > text_x ? right_edge - text_x : 0.0f;
+    const float y = area.y + 48.0f;
 
-    return layout_demo_line(app, title, label_x, 140.0f, 0.0f, VELLUM_THEME_ACCENT, size + 4u,
-                            error) &&
-           layout_demo_line(app, subtitle, label_x, 168.0f, 0.0f, VELLUM_THEME_TEXT, size, error) &&
-           layout_demo_line(app, latin_label, label_x, 228.0f, 0.0f, VELLUM_THEME_ACCENT, size,
-                            error) &&
-           layout_demo_line(app, latin, text_x, 228.0f, 0.0f, VELLUM_THEME_TEXT, size, error) &&
-           layout_demo_line(app, cjk_label, label_x, 276.0f, 0.0f, VELLUM_THEME_ACCENT, size,
-                            error) &&
-           layout_demo_line(app, cjk, text_x, 276.0f, 0.0f, VELLUM_THEME_TEXT, size, error) &&
-           layout_demo_line(app, arabic_label, label_x, 324.0f, 0.0f, VELLUM_THEME_ACCENT, size,
-                            error) &&
-           layout_demo_line(app, arabic, text_x, 324.0f, text_box, VELLUM_THEME_TEXT, size,
-                            error) &&
-           layout_demo_line(app, fallback_label, label_x, 372.0f, 0.0f, VELLUM_THEME_ACCENT, size,
-                            error) &&
-           layout_demo_line(app, fallback, text_x, 372.0f, 0.0f, VELLUM_THEME_TEXT, size, error) &&
-           layout_demo_line(app, hint, label_x, 432.0f, 0.0f, VELLUM_THEME_TEXT, size, error);
+    if (!layout_demo_line(app, title, label_x, y, 0.0f, VELLUM_THEME_ACCENT, size + 4u, error) ||
+        !layout_demo_line(app, subtitle, label_x, y + 28.0f, 0.0f, VELLUM_THEME_TEXT, size,
+                          error)) {
+        return false;
+    }
+
+    const struct {
+        const char *label;
+        const char *text;
+        float offset;
+        float box_width;
+    } rows[] = {{latin_label, latin, 88.0f, 0.0f},
+                {cjk_label, cjk, 136.0f, 0.0f},
+                {arabic_label, arabic, 184.0f, text_box},
+                {fallback_label, fallback, 232.0f, 0.0f}};
+    for (size_t i = 0u; i < sizeof(rows) / sizeof(rows[0]); ++i) {
+        if (wide && !layout_demo_line(app, rows[i].label, label_x, y + rows[i].offset, 0.0f,
+                                      VELLUM_THEME_ACCENT, size, error)) {
+            return false;
+        }
+        if (!layout_demo_line(app, rows[i].text, text_x, y + rows[i].offset, rows[i].box_width,
+                              VELLUM_THEME_TEXT, size, error)) {
+            return false;
+        }
+    }
+    return layout_demo_line(app, hint, label_x, y + 312.0f, 0.0f, VELLUM_THEME_TEXT, size, error);
 }
 
 static bool build_scene(VellumApp *app, VellumErrorInfo *error)
@@ -472,22 +519,24 @@ static bool build_scene(VellumApp *app, VellumErrorInfo *error)
     vellum_draw_list_clear(list);
     vellum_draw_list_set_clear_color(list,
                                      vellum_theme_color(&app->theme, VELLUM_THEME_BACKGROUND));
-    vellum_draw_list_rect(list, 0.0f, 0.0f, 180.0f, (float)app->height,
-                          vellum_theme_color(&app->theme, VELLUM_THEME_SIDEBAR));
-    vellum_draw_list_rect(list, 180.0f, 0.0f, (float)(app->width - 180), 24.0f,
-                          vellum_theme_color(&app->theme, VELLUM_THEME_TAB_BAR));
-    vellum_draw_list_rect(list, 180.0f, 80.0f, (float)(app->width - 180), 18.0f,
-                          vellum_theme_color(&app->theme, VELLUM_THEME_TAB_BAR));
-    if (app->width > 220) {
-        vellum_draw_list_rect(list, 200.0f, 190.0f, (float)(app->width - 220), 1.0f,
-                              vellum_theme_color(&app->theme, VELLUM_THEME_TAB_BAR));
+
+    VellumUiContext ctx;
+    app_ui_context(app, &ctx);
+    const VellumBounds window = {0.0f, 0.0f, (float)app->width, (float)app->height};
+    vellum_widget_layout(app->ui_root, window, &ctx);
+    if (!vellum_widget_paint(app->ui_root, &ctx, error)) {
+        return false;
+    }
+
+    /* Demo text is positioned relative to the editor panel. The renderer's scissor is
+     * draw-list wide, so clipping here would also clip the surrounding panels. */
+    const VellumBounds editor = vellum_widget_bounds(vellum_ui_editor(app->ui_root));
+    if (editor.width > 0.0f && editor.height > 0.0f && !build_demo_text(app, editor, error)) {
+        return false;
     }
 
     /* Shaping and rasterizing happens first: it may add glyphs to the atlas, so the
      * texture upload must follow it but still precede the renderer submission. */
-    if (!build_demo_text(app, error)) {
-        return false;
-    }
     if (vellum_font_system_atlas_is_dirty(app->fonts)) {
         uint32_t width = 0u;
         uint32_t height = 0u;
@@ -574,6 +623,9 @@ void vellum_app_destroy(VellumApp *app)
     }
     if (app->watcher != NULL) {
         vellum_file_watcher_destroy(app->watcher);
+    }
+    if (app->ui_root != NULL) {
+        vellum_widget_destroy(app->ui_root);
     }
     if (app->draw_list != NULL) {
         vellum_draw_list_destroy(app->draw_list);

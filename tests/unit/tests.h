@@ -18,6 +18,8 @@ bool test_unicode(void);
 bool test_font(void);
 bool test_shape(void);
 bool test_layout(void);
+bool test_widget(void);
+bool test_panels(void);
 bool test_config(void);
 bool test_theme(void);
 bool test_paths(void);

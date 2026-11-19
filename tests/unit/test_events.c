@@ -47,6 +47,14 @@ bool test_events(void)
     }
 
     SDL_zero(event);
+    event.type = SDL_EVENT_KEY_DOWN;
+    event.key.key = SDLK_TAB;
+    if (!vellum_input_from_sdl(&event, 0u, &input) || input.type != VELLUM_INPUT_KEY ||
+        input.data.key.key != VELLUM_KEY_TAB) {
+        return false;
+    }
+
+    SDL_zero(event);
     event.type = SDL_EVENT_TEXT_INPUT;
     event.text.text = "hi";
     if (!vellum_input_from_sdl(&event, 0u, &input) || input.type != VELLUM_INPUT_TEXT ||
@@ -59,7 +67,27 @@ bool test_events(void)
     event.motion.x = 12.5f;
     event.motion.y = 44.0f;
     if (!vellum_input_from_sdl(&event, 0u, &input) || input.type != VELLUM_INPUT_POINTER_MOTION ||
-        input.data.pointer.x != 12.5f || input.data.pointer.y != 44.0f) {
+        input.data.pointer.x != 12.5f || input.data.pointer.y != 44.0f ||
+        input.data.pointer.button != 0u || input.data.pointer.pressed) {
+        return false;
+    }
+
+    SDL_zero(event);
+    event.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+    event.button.x = 10.0f;
+    event.button.y = 20.0f;
+    event.button.button = SDL_BUTTON_LEFT;
+    if (!vellum_input_from_sdl(&event, 0u, &input) || input.type != VELLUM_INPUT_POINTER_BUTTON ||
+        input.data.pointer.x != 10.0f || input.data.pointer.y != 20.0f ||
+        input.data.pointer.button != VELLUM_POINTER_BUTTON_LEFT || !input.data.pointer.pressed) {
+        return false;
+    }
+
+    SDL_zero(event);
+    event.type = SDL_EVENT_MOUSE_BUTTON_UP;
+    event.button.button = SDL_BUTTON_RIGHT;
+    if (!vellum_input_from_sdl(&event, 0u, &input) || input.type != VELLUM_INPUT_POINTER_BUTTON ||
+        input.data.pointer.button != VELLUM_POINTER_BUTTON_RIGHT || input.data.pointer.pressed) {
         return false;
     }
 

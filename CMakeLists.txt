@@ -112,8 +112,19 @@ add_library(vellum_platform STATIC
     src/platform/window.c)
 target_link_libraries(vellum_platform PUBLIC vellum_core vellum_build_flags)
 
+add_library(vellum_ui STATIC
+    src/ui/widget.c
+    src/ui/panels.c)
+target_link_libraries(vellum_ui PUBLIC
+    vellum_graphics
+    vellum_config
+    vellum_platform
+    vellum_core
+    vellum_build_flags)
+
 add_library(vellum_app STATIC src/app.c)
 target_link_libraries(vellum_app PUBLIC
+    vellum_ui
     vellum_platform
     vellum_graphics
     vellum_config
@@ -137,11 +148,14 @@ add_executable(vellum_unit_tests
     tests/unit/test_font.c
     tests/unit/test_shape.c
     tests/unit/test_layout.c
+    tests/unit/test_widget.c
+    tests/unit/test_panels.c
     tests/unit/test_config.c
     tests/unit/test_theme.c
     tests/unit/test_paths.c)
 target_include_directories(vellum_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(vellum_unit_tests PRIVATE
+    vellum_ui
     vellum_platform
     vellum_graphics
     vellum_config

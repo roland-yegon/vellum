@@ -31,6 +31,7 @@ typedef enum {
 typedef enum {
     VELLUM_KEY_UNKNOWN = 0,
     VELLUM_KEY_ESCAPE,
+    VELLUM_KEY_TAB,
     VELLUM_KEY_UP,
     VELLUM_KEY_DOWN,
     VELLUM_KEY_LEFT,
@@ -46,6 +47,11 @@ typedef enum {
 #define VELLUM_MOD_GUI 0x08u
 
 #define VELLUM_TEXT_MAX 8
+
+/* SDL mouse button numbering (SDL3): 1 left, 2 middle, 3 right. */
+#define VELLUM_POINTER_BUTTON_LEFT 1u
+#define VELLUM_POINTER_BUTTON_MIDDLE 2u
+#define VELLUM_POINTER_BUTTON_RIGHT 3u
 
 /* Codes carried by SDL_Event.user.code / VellumMessage.type for app messages. */
 typedef enum { VELLUM_APPMSG_STARTUP = 1u, VELLUM_APPMSG_CONFIG_RELOAD = 2u } VellumAppMessage;
@@ -64,6 +70,8 @@ typedef struct {
         struct {
             float x;
             float y;
+            uint8_t button; /* 0 for motion events. */
+            bool pressed;   /* True on button down, false on up. */
         } pointer;
         struct {
             float x;

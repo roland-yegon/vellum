@@ -32,11 +32,15 @@ The window closes with `Esc`, the window manager's close button, or `SIGINT`/`SI
 Press `T` to switch between the dark and light themes; all panels are recoloured from
 semantic theme tokens and the choice is persisted to your user settings file. Settings
 and theme overrides in the preferences directory are watched on a worker and reloaded
-live when they change. The demo screen shows shaped Latin (including `!=` and `=>`
-ligatures), CJK, an Arabic phrase laid out right-to-left, and mixed-script fallback
-using the bundled fonts. Startup logs the linked SDL version, the renderer SDL selected,
-the active theme and font size, the preferences path, and frame timing for the first
-rendered frame.
+live when they change. The window now uses a retained widget tree: an activity bar, a
+sidebar, a draggable splitter, a tab strip, an editor area, and a status bar. Click the
+activity bar to toggle the sidebar, drag the splitter (or focus it and use the arrow
+keys) to resize, switch tabs by clicking or with the left/right arrow keys, and press
+`Tab` to move focus between panels. The editor area shows shaped Latin (including `!=`
+and `=>` ligatures), CJK, an Arabic phrase laid out right-to-left, and mixed-script
+fallback using the bundled fonts. Startup logs the linked SDL version, the renderer SDL
+selected, the active theme and font size, the preferences path, and frame timing for the
+first rendered frame.
 
 Tests and benchmarks:
 
@@ -60,7 +64,11 @@ multilingual fonts, HarfBuzz run shaping with fallback and a cache, renderer-own
 textures with per-texture geometry batching, and glyph-atlas upload are in place.
 `vellum_text_layout_line()` turns shaped runs into positioned atlas quads with ICU
 base-direction detection, right-to-left placement, and per-face fallback glyphs; the
-demo screen renders Latin, CJK, Arabic, and mixed-script text through it. Vendored
+demo screen renders Latin, CJK, Arabic, and mixed-script text through it. A retained
+widget tree in `src/ui/` provides constraint layout, dirty propagation, focus/tab order,
+hit-testing, pointer capture for drags, and theme-token panel painting; `src/ui/panels.c`
+builds the activity bar, sidebar, splitter, tab strip, editor area, and status bar, and
+the app dispatches input to the tree and relayouts on resize or config changes. Vendored
 yyjson (0.13.0) powers typed settings and semantic light/dark theme tokens loaded from
 `config/` with strict parse errors and compiled-in fallbacks. User overrides in the
 preferences directory layer over the shipped defaults and reload live via a file

@@ -226,9 +226,22 @@ Implemented increments, each built and tested before proceeding:
   and bench builds plus CTest, `clang-format --dry-run --Werror`, and a real-window
   smoke test pass with the demo active.
 
-Remaining Phase 2 work: the widgets/panels foundation (retained widget tree, constraint
-layout, focus/hit-testing, and resizable panels), plus the outstanding exit-criteria
-evidence: DPI/scale re-rasterization, the 1,000-glyph frame-cost check, and line caching.
+- The retained widget tree (`src/ui/widget.c`) provides opaque widgets with measure,
+  layout, paint, and event callbacks; constraint-based measurement; recursive
+  layout/paint with dirty propagation; visibility; focus/tab order; hover; hit-testing;
+  and pointer capture so a pressed widget receives motion until release. Unit tests
+  cover all of these, including destroying a focused/hovered widget and paint failures.
+- `src/ui/panels.c` builds the activity bar, sidebar, splitter, tab strip, editor area,
+  and status bar, paints them from semantic theme tokens, and implements splitter
+  drag/clamp/keyboard resize, activity-bar sidebar toggle, and tab switching. The app
+  owns a `VellumUiState`, dispatches input into the root, mirrors settings visibility,
+  relayouts on resize/config changes, and positions the multilingual demo text inside
+  the editor panel. Unit tests cover exact geometry at 1000x700, visibility toggles,
+  splitter clamping to `VELLUM_UI_SIDEBAR_MIN`/`MAX`, tab switching via paint colours,
+  the activity toggle, and paint error handling.
+
+Remaining Phase 2 work: the outstanding exit-criteria evidence — DPI/scale
+re-rasterization, the 1,000-glyph frame-cost check, and line caching.
 
 ---
 
@@ -466,6 +479,7 @@ To keep the project honest, these are explicitly **not** early work:
 
 Phase 1 is complete and verified. In Phase 2, ICU validation/graphemes, the FreeType
 atlas, HarfBuzz shaping, renderer texture support, atlas upload, single-line text layout,
-the multilingual demo screen, typed config/themes, and user overrides with live reload
-are complete and tested. Next start the widgets/panels foundation; it is a major
-architectural step, so agree on its design before implementing it.
+the multilingual demo screen, the retained widget tree and panels, typed config/themes,
+and user overrides with live reload are complete and tested. Next close the remaining
+Phase 2 exit-criteria gaps (DPI/scale re-rasterization, 1,000-glyph frame cost, line
+caching) before starting the Phase 3 text engine.

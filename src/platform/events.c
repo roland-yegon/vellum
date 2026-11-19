@@ -12,6 +12,8 @@ static VellumKey translate_key(SDL_Keycode key)
     switch (key) {
     case SDLK_ESCAPE:
         return VELLUM_KEY_ESCAPE;
+    case SDLK_TAB:
+        return VELLUM_KEY_TAB;
     case SDLK_UP:
         return VELLUM_KEY_UP;
     case SDLK_DOWN:
@@ -94,6 +96,8 @@ bool vellum_input_from_sdl(const SDL_Event *event, uint32_t app_event_base, Vell
         out->type = VELLUM_INPUT_POINTER_BUTTON;
         out->data.pointer.x = event->button.x;
         out->data.pointer.y = event->button.y;
+        out->data.pointer.button = event->button.button;
+        out->data.pointer.pressed = event->type == SDL_EVENT_MOUSE_BUTTON_DOWN;
         return true;
     case SDL_EVENT_MOUSE_WHEEL:
         out->type = VELLUM_INPUT_WHEEL;
