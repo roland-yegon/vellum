@@ -391,9 +391,28 @@ layer are implemented and verified as the first Phase 3 increments:
   10,000-operation differential fuzz against a contiguous-text model with a naive line
   scanner. The same suite was additionally run at 200,000 operations under ASan/UBSan
   as a stress check.
+- `vellum_text` also exposes `include/vellum/text/edit.h`, a thin coordination layer
+  over the buffer, line index, command stack, and cursor. It adds insertion/replacement
+  of the selection, grapheme-aware backspace/delete (including smart outdent of one
+  indent unit inside leading whitespace), newline with auto-indent copied from the
+  current line, and indent/outdent of every logical line touched by the selection.
+  Every operation goes through the command stack and notifies the cursor, so each call
+  is one undo entry; undo/redo wrappers clamp and re-snap the caret. The indent unit is
+  configurable (default four spaces). Bracket completion, multiple cursors, clipboard,
+  and visual-line scrolling remain deferred.
+- `src/text/edit.c` groups multi-edit calls in transactions so a failed operation
+  aborts cleanly, and deletes the preceding line break when backspacing at a line start
+  rather than treating it as a zero-width outdent.
+- Unit tests in `tests/unit/test_edit.c` cover insertion/replacement with undo/redo,
+  deleting combining marks and emoji ZWJ clusters, smart backspace (including at line
+  starts and on empty lines), newline auto-indent, single- and multi-line indent/outdent,
+  indent-unit configuration, NULL handling, and a 10,000-operation differential fuzz
+  against a contiguous-string model. The same fuzz was additionally run at 200,000
+  operations under ASan/UBSan as a stress check.
 
-Remaining Phase 3 increments (editing operations, scrolling integration, and scale
-benchmarks) are not yet implemented; the phase exit criteria are therefore not yet met.
+Remaining Phase 3 increments (clipboard/drag-and-drop, bracket completion, multiple
+cursors, scrolling integration, and scale benchmarks) are not yet implemented; the
+phase exit criteria are therefore not yet met.
 
 ---
 
@@ -600,6 +619,8 @@ recorded exit evidence (see above). Phase 3 has advanced with the standalone buf
 core, line index, and command stack: a byte-oriented piece table indexed by an AVL
 tree, OOM-safe split/insert/delete, a flat-array line index with incremental updates,
 inverse-operation undo/redo with transactions, bounded memory, adjacent-insert typing
-coalescing, and grapheme-aware cursor/selection with edit remapping, plus differential
-fuzz tests. The next action is editing operations (tab/indent, smart backspace,
-auto-indent), keeping all earlier builds, tests, and benchmarks green.
+coalescing, grapheme-aware cursor/selection with edit remapping, and editing operations
+(insert/replace, grapheme-aware delete, smart backspace, newline auto-indent, and
+indent/outdent), plus differential fuzz tests. The next action is clipboard integration
+and the scrolling model, followed by multiple cursors and scale benchmarks, keeping all
+earlier builds, tests, and benchmarks green.

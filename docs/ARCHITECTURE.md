@@ -333,7 +333,13 @@ The cursor/selection layer is implemented in `src/text/cursor.c` with the public
 `include/vellum/text/cursor.h`: a caret and selection as byte offsets on ICU grapheme
 boundaries, grapheme-aware horizontal movement, logical-line vertical movement with a
 preserved desired column, and anchor/head remapping after edits. It borrows the buffer
-and line index; visual/wrapped-line movement waits for the layout-aware view.
+and line index; visual/wrapped-line movement waits for the layout-aware view. The editing
+layer is implemented in `src/text/edit.c` with the public API in `include/vellum/text/edit.h`:
+selection insert/replace, grapheme-aware backspace/delete with smart outdent of leading
+whitespace, newline with auto-indent, and indent/outdent of selected lines. It borrows all
+four lower layers, routes every mutation through the command stack (grouping multi-edit
+operations in transactions), and keeps the cursor notified. Bracket completion, multiple
+cursors, clipboard, and visual-line scrolling remain deferred.
 
 ### 7.6 Editor model
 
@@ -522,6 +528,7 @@ panels, typed config/themes, live config reload, and the text-frame benchmark ar
 implemented and verified; see `ROADMAP.md` and
 [`benchmarks/2026-11-19-text-frame.md`](benchmarks/2026-11-19-text-frame.md). Phase 3
 is in progress with the standalone buffer core, line index, command stack (including
-adjacent-insert typing coalescing), and grapheme-aware cursor/selection implemented and
-verified. The next increment is editing operations (tab/indent, smart backspace,
-auto-indent).
+adjacent-insert typing coalescing), grapheme-aware cursor/selection, and editing
+operations (insert/replace, grapheme-aware delete, smart backspace, newline auto-indent,
+indent/outdent) implemented and verified. The next increment is clipboard integration
+and the scrolling model.

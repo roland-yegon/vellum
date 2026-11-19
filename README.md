@@ -108,7 +108,12 @@ offsets, horizontal movement by extended grapheme cluster, logical-line vertical
 movement with a preserved column, selection extension, and edit remapping; its tests
 cover combining marks, emoji ZWJ sequences, LF/CRLF/CR crossing, invalid UTF-8
 fallback, and a 10,000-operation differential fuzz (also stress-run at 200,000
-operations under ASan/UBSan).
+operations under ASan/UBSan). An editing layer coordinates buffer, line index, command
+stack, and cursor: selection insert/replace, grapheme-aware backspace/delete with smart
+outdent of leading whitespace, newline with auto-indent, and indent/outdent of selected
+lines, each as one undoable entry. Its tests cover those operations, line-break
+backspace, Unicode clusters, and a 10,000-operation differential fuzz (also stress-run
+at 200,000 operations under ASan/UBSan).
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence and
 [`docs/benchmarks/2026-11-19-text-frame.md`](docs/benchmarks/2026-11-19-text-frame.md)
 for the recorded benchmark data.
