@@ -29,12 +29,14 @@ bool test_draw_list(void)
     const VellumColor blue = vellum_color(0.0f, 0.0f, 1.0f, 0.5f);
     if (!vellum_draw_list_rect(list, 1.0f, 2.0f, 3.0f, 4.0f, red) ||
         !vellum_draw_list_rect(list, 5.0f, 6.0f, 7.0f, 8.0f, blue) ||
-        !vellum_draw_list_textured_quad(list, 0.0f, 0.0f, 8.0f, 8.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-                                        blue)) {
+        !vellum_draw_list_textured_quad(list, VELLUM_TEXTURE_NONE, 0.0f, 0.0f, 8.0f, 8.0f, 0.0f,
+                                        0.0f, 1.0f, 1.0f, blue) ||
+        !vellum_draw_list_textured_quad(list, 42u, 10.0f, 10.0f, 4.0f, 4.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+                                        red)) {
         vellum_draw_list_destroy(list);
         return false;
     }
-    if (vellum_draw_list_command_count(list) != 3u) {
+    if (vellum_draw_list_command_count(list) != 4u) {
         vellum_draw_list_destroy(list);
         return false;
     }
@@ -46,7 +48,8 @@ bool test_draw_list(void)
         return false;
     }
     const VellumTexturedQuad *quads = vellum_draw_list_quads(list, &count);
-    if (quads == NULL || count != 1u || quads[0].u1 != 1.0f || quads[0].width != 8.0f) {
+    if (quads == NULL || count != 2u || quads[0].u1 != 1.0f || quads[0].width != 8.0f ||
+        quads[0].texture != VELLUM_TEXTURE_NONE || quads[1].texture != 42u) {
         vellum_draw_list_destroy(list);
         return false;
     }

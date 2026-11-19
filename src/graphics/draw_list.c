@@ -88,9 +88,9 @@ bool vellum_draw_list_rect(VellumDrawList *list, float x, float y, float width, 
     return true;
 }
 
-bool vellum_draw_list_textured_quad(VellumDrawList *list, float x, float y, float width,
-                                    float height, float u0, float v0, float u1, float v1,
-                                    VellumColor tint)
+bool vellum_draw_list_textured_quad(VellumDrawList *list, VellumTextureHandle texture, float x,
+                                    float y, float width, float height, float u0, float v0,
+                                    float u1, float v1, VellumColor tint)
 {
     if (list == NULL) {
         return false;
@@ -99,6 +99,7 @@ bool vellum_draw_list_textured_quad(VellumDrawList *list, float x, float y, floa
     if (quad == NULL) {
         return false;
     }
+    quad->texture = texture;
     quad->x = x;
     quad->y = y;
     quad->width = width;

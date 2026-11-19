@@ -43,8 +43,8 @@ bool bench_draw_list(void)
             const float x = (float)(i % 240u) * 8.0f;
             const float y = (float)(i / 240u) * 16.0f;
             const VellumColor tint = vellum_color(0.85f, 0.87f, 0.92f, 1.0f);
-            if (!vellum_draw_list_textured_quad(list, x, y, 8.0f, 16.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-                                                tint)) {
+            if (!vellum_draw_list_textured_quad(list, VELLUM_TEXTURE_NONE, x, y, 8.0f, 16.0f, 0.0f,
+                                                0.0f, 1.0f, 1.0f, tint)) {
                 vellum_draw_list_destroy(list);
                 return false;
             }

@@ -177,15 +177,22 @@ Implemented increments, each built and tested before proceeding:
   glyphs for `中文`, and 6 visual-order glyphs for `مرحبا`. JetBrains Mono emits a
   spacer glyph followed by the ligature rather than one collapsed glyph, and the unit
   test documents that observed behaviour.
+- The draw list carries a `VellumTextureHandle` per textured quad; zero selects the
+  built-in white texture. The renderer owns stable, never-reused handles for RGBA
+  textures and groups geometry into one SDL geometry call per consecutive texture run.
+  An integration test creates, updates, and destroys a texture, submits white and
+  custom-textured quads, and verifies that unknown and destroyed handles are rejected.
+- The app loads the three bundled faces, uploads the RGBA atlas into a renderer texture,
+  rasterizes a small Latin/CJK/Arabic glyph set, and re-uploads only when the atlas is
+  dirty. The demo scene now emits glyph quads from that texture.
 - Pinned OFL-1.1 fonts and their notices are under `assets/fonts/`; the choice is
   recorded in [ADR-005](architecture/ADR-005-bundled-multilingual-fonts.md). The system
   text libraries and their licences are recorded in
   [ADR-006](architecture/ADR-006-icu-freetype-harfbuzz-text-pipeline.md).
-- Debug, release, and bench presets build and pass `ctest`; debug runs under
-  ASan/UBSan, and `clang-format --dry-run --Werror` is clean.
+- Debug, release, and bench presets build and pass `ctest` (unit, app events, renderer
+  textures); debug runs under ASan/UBSan, and `clang-format --dry-run --Werror` is clean.
 
-Remaining Phase 2 work: renderer texture support, theme/config, widgets/panels, and
-the multilingual demo screen.
+Remaining Phase 2 work: theme/config, widgets/panels, and the multilingual demo screen.
 
 ---
 
@@ -422,5 +429,5 @@ To keep the project honest, these are explicitly **not** early work:
 ## 4. Immediate next action
 
 Phase 1 is complete and verified. In Phase 2, ICU validation/graphemes, the FreeType
-atlas, and HarfBuzz shaping are complete and tested. Next add renderer texture upload,
-then theme/config, widgets/panels, and the multilingual demo screen.
+atlas, HarfBuzz shaping, renderer texture support, and atlas upload are complete and
+tested. Next add theme/config, widgets/panels, and the multilingual demo screen.

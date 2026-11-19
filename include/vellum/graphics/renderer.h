@@ -20,6 +20,17 @@ struct SDL_Window;
 typedef struct VellumRenderer VellumRenderer;
 
 VellumRenderer *vellum_renderer_create(struct SDL_Window *window, VellumErrorInfo *error);
+
+/* Creates an RGBA8888 static texture. `pixels` must contain width * height * 4 bytes in
+ * memory order R, G, B, A. Handles are stable and are never reused after destruction,
+ * so stale handles fail validation instead of aliasing a newer texture. */
+VellumTextureHandle vellum_renderer_create_texture(VellumRenderer *renderer, uint32_t width,
+                                                   uint32_t height, const uint8_t *pixels,
+                                                   VellumErrorInfo *error);
+bool vellum_renderer_update_texture(VellumRenderer *renderer, VellumTextureHandle handle,
+                                    const uint8_t *pixels, VellumErrorInfo *error);
+void vellum_renderer_destroy_texture(VellumRenderer *renderer, VellumTextureHandle handle);
+
 bool vellum_renderer_submit(VellumRenderer *renderer, const VellumDrawList *list,
                             VellumErrorInfo *error);
 const char *vellum_renderer_name(const VellumRenderer *renderer);

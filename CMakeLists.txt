@@ -135,3 +135,10 @@ target_link_libraries(vellum_bench_draw_list PRIVATE vellum_graphics vellum_core
 add_executable(vellum_integration_tests tests/integration/test_app_events.c)
 target_link_libraries(vellum_integration_tests PRIVATE vellum_app vellum_build_flags)
 add_test(NAME app_events COMMAND vellum_integration_tests)
+
+add_executable(vellum_renderer_texture_tests tests/integration/test_renderer_textures.c)
+target_link_libraries(vellum_renderer_texture_tests PRIVATE
+    vellum_graphics
+    vellum_core
+    vellum_build_flags)
+add_test(NAME renderer_textures COMMAND vellum_renderer_texture_tests)

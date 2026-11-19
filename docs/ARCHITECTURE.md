@@ -209,8 +209,8 @@ Evidence and rationale:
   management. That is real complexity and a real maintenance cost. We adopt it only
   if a benchmark proves the Render backend is the bottleneck.
 - The internal `vellum_draw_list` interface is intentionally tiny: `begin`, `rect`,
-  `textured_quad` (batched), `line`, `scissor`, `end/submit`. A future GPU backend
-  implements the same interface with one instanced draw; no UI code changes.
+  `textured_quad` (batched by texture handle), `line`, `scissor`, `end/submit`. A future
+  GPU backend implements the same interface with one instanced draw; no UI code changes.
 
 This satisfies "do not introduce an unnecessarily complicated rendering architecture"
 while preserving a credible high-performance path.
@@ -238,8 +238,10 @@ atlas and glyph cache in `src/graphics/font.c`, with pinned fonts bundled per
 [ADR-005](architecture/ADR-005-bundled-multilingual-fonts.md). HarfBuzz 15.1.0 shapes
 runs in `src/graphics/shape.c` with fallback, `calt`/`liga`, UTF-8 cluster offsets,
 and a byte-verified cache. The three system libraries and their licences are recorded
-in [ADR-006](architecture/ADR-006-icu-freetype-harfbuzz-text-pipeline.md). Renderer
-texture upload and line layout are the next increments.
+in [ADR-006](architecture/ADR-006-icu-freetype-harfbuzz-text-pipeline.md). The renderer
+owns stable texture handles, batches geometry per texture, and uploads the RGBA atlas
+when the font system reports it dirty. Line layout and the full demo screen are the next
+increments.
 
 `SDL3_ttf` is **not** part of the core pipeline: we use FreeType/HarfBuzz directly to
 control shaping and caching. The Makefile that referenced it was removed in Phase 1,
@@ -435,7 +437,6 @@ below is a non-normative summary; the ADR is authoritative wherever both cover a
 
 ---
 
-**Next step:** continue Phase 2 (Native UI and text foundation) with renderer texture
-upload from the glyph atlas, then theme/config, widgets/panels, and the multilingual
-demo screen. ICU, FreeType, and HarfBuzz primitives are implemented and verified; see
-`ROADMAP.md`.
+**Next step:** continue Phase 2 (Native UI and text foundation) with theme/config,
+widgets/panels, and the multilingual demo screen. ICU, FreeType, HarfBuzz, renderer
+textures, and atlas upload are implemented and verified; see `ROADMAP.md`.

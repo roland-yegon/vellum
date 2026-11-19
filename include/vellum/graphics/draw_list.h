@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,6 +21,11 @@ typedef struct {
     float a;
 } VellumColor;
 
+/* Renderer-owned texture handle. Zero selects the built-in white texture, which is
+ * useful for solid tinted geometry; nonzero handles come from the renderer. */
+typedef uint32_t VellumTextureHandle;
+#define VELLUM_TEXTURE_NONE 0u
+
 typedef struct {
     float x;
     float y;
@@ -29,6 +35,7 @@ typedef struct {
 } VellumRect;
 
 typedef struct {
+    VellumTextureHandle texture;
     float x;
     float y;
     float width;
@@ -48,9 +55,9 @@ void vellum_draw_list_destroy(VellumDrawList *list);
 void vellum_draw_list_clear(VellumDrawList *list);
 bool vellum_draw_list_rect(VellumDrawList *list, float x, float y, float width, float height,
                            VellumColor color);
-bool vellum_draw_list_textured_quad(VellumDrawList *list, float x, float y, float width,
-                                    float height, float u0, float v0, float u1, float v1,
-                                    VellumColor tint);
+bool vellum_draw_list_textured_quad(VellumDrawList *list, VellumTextureHandle texture, float x,
+                                    float y, float width, float height, float u0, float v0,
+                                    float u1, float v1, VellumColor tint);
 void vellum_draw_list_set_clear_color(VellumDrawList *list, VellumColor color);
 VellumColor vellum_draw_list_clear_color(const VellumDrawList *list);
 void vellum_draw_list_set_scissor(VellumDrawList *list, bool enabled, float x, float y, float width,
