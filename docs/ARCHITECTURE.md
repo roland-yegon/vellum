@@ -342,9 +342,15 @@ operations in transactions), and keeps the cursor notified. It also exposes SDL-
 copy/cut/paste helpers over the selection. The SDL clipboard itself is wrapped in
 `src/platform/clipboard.c` (`include/vellum/platform/clipboard.h`): main-thread calls to
 SDL3's text clipboard returning a malloc'd UTF-8 copy, keeping SDL out of `vellum_text`.
-App-level keybindings and editor-state ownership are deferred to the editor-experience
-phase. Bracket completion, multiple cursors, drag-and-drop, and visual-line scrolling
-remain deferred.
+The scrolling model is implemented in `src/text/scroll.c` with the public API in
+`include/vellum/text/scroll.h`: it borrows the buffer and line index, derives vertical
+content extent from `line_count * line_height`, accepts a caller-supplied horizontal
+content width, clamps scroll offsets to the view size, maps offsets to visible logical
+lines and byte ranges, and supports minimal scroll-to-line/offset. It stays free of SDL
+and layout dependencies, so the view-rect origin and draw-list scissor remain UI concerns;
+wrapped-line movement and scrollbar widgets are deferred. App-level keybindings and
+editor-state ownership are deferred to the editor-experience phase. Bracket completion,
+multiple cursors, and drag-and-drop remain deferred.
 
 ### 7.6 Editor model
 
@@ -535,5 +541,6 @@ implemented and verified; see `ROADMAP.md` and
 is in progress with the standalone buffer core, line index, command stack (including
 adjacent-insert typing coalescing), grapheme-aware cursor/selection, editing operations
 (insert/replace, grapheme-aware delete, smart backspace, newline auto-indent,
-indent/outdent), and SDL-backed clipboard support (text-level copy/cut/paste plus a
-platform wrapper) implemented and verified. The next increment is the scrolling model.
+indent/outdent), SDL-backed clipboard support (text-level copy/cut/paste plus a platform
+wrapper), and a layout-independent scrolling model over the line index implemented and
+verified. The next increment is multiple cursors and scale benchmarks.

@@ -399,7 +399,7 @@ layer are implemented and verified as the first Phase 3 increments:
   Every operation goes through the command stack and notifies the cursor, so each call
   is one undo entry; undo/redo wrappers clamp and re-snap the caret. The indent unit is
   configurable (default four spaces). Bracket completion, multiple cursors, drag-and-drop,
-  and visual-line scrolling remain deferred.
+  and wrapped/visual-line movement remain deferred.
 - `src/text/edit.c` groups multi-edit calls in transactions so a failed operation
   aborts cleanly, and deletes the preceding line break when backspacing at a line start
   rather than treating it as a zero-width outdent.
@@ -423,9 +423,21 @@ layer are implemented and verified as the first Phase 3 increments:
   rejection, embedded NULs, and undo of cuts. `tests/unit/test_clipboard.c` exercises the
   SDL wrapper headlessly with the dummy video driver (ASCII and UTF-8 roundtrips, empty
   and cleared clipboard).
+- A layout-independent scrolling model lives in `include/vellum/text/scroll.h` and
+  `src/text/scroll.c` inside the SDL-free `vellum_text` library. It borrows the buffer
+  and line index, derives vertical content extent from `line_count * line_height`, and
+  takes the horizontal content width from the caller (typically layout metrics). It
+  clamps scroll offsets to the view, maps scroll position to visible logical lines and
+  byte ranges, and supports minimal scroll-to-line/offset. No SDL/FreeType dependency is
+  added; the view rect's origin and draw-list clipping stay in the UI layer. Wrapped
+  (visual) line movement and scrollbar widgets remain deferred.
+- Unit tests in `tests/unit/test_scroll.c` cover extents and clamping in both axes,
+  visible-line and byte-range mapping (including empty documents and unaligned views),
+  scroll-to-line/offset, horizontal ensure-visible, re-clamping after an edit shrinks the
+  line count, and an invariant sweep across view heights and scroll offsets.
 
 Remaining Phase 3 increments (drag-and-drop, bracket completion, multiple cursors,
-scrolling integration, and scale benchmarks) are not yet implemented; the phase exit
+scrollbar rendering, and scale benchmarks) are not yet implemented; the phase exit
 criteria are therefore not yet met.
 
 ---
@@ -635,7 +647,7 @@ tree, OOM-safe split/insert/delete, a flat-array line index with incremental upd
 inverse-operation undo/redo with transactions, bounded memory, adjacent-insert typing
 coalescing, grapheme-aware cursor/selection with edit remapping, editing operations
 (insert/replace, grapheme-aware delete, smart backspace, newline auto-indent, and
-indent/outdent), and SDL-backed clipboard support via a text-level copy/cut/paste API and
-a platform clipboard wrapper, plus differential fuzz tests. The next action is the
-scrolling model, followed by multiple cursors and scale benchmarks, keeping all earlier
-builds, tests, and benchmarks green.
+indent/outdent), SDL-backed clipboard support via a text-level copy/cut/paste API and a
+platform clipboard wrapper, and a layout-independent scrolling model over the line index,
+plus differential fuzz tests. The next action is multiple cursors and scale benchmarks,
+keeping all earlier builds, tests, and benchmarks green.

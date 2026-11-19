@@ -115,7 +115,10 @@ lines, each as one undoable entry. Its tests cover those operations, line-break
 backspace, Unicode clusters, and a 10,000-operation differential fuzz (also stress-run
 at 200,000 operations under ASan/UBSan). Clipboard support adds SDL-free text-level
 copy/cut/paste and a headless-tested SDL3 platform wrapper around the system text
-clipboard; app-level keybindings come with the editor UI.
+clipboard; app-level keybindings come with the editor UI. A layout-independent scrolling
+model over the line index clamps offsets to a view size, maps scroll position to visible
+logical lines and byte ranges, and supports scroll-to-line/offset, with tests covering
+clamping, visible ranges, edits, and an invariant sweep.
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence and
 [`docs/benchmarks/2026-11-19-text-frame.md`](docs/benchmarks/2026-11-19-text-frame.md)
 for the recorded benchmark data.
