@@ -10,14 +10,14 @@ static VellumLogLevel g_log_level = VELLUM_LOG_INFO;
 static const char *level_name(VellumLogLevel level)
 {
     switch (level) {
-        case VELLUM_LOG_DEBUG:
-            return "DEBUG";
-        case VELLUM_LOG_INFO:
-            return "INFO";
-        case VELLUM_LOG_WARN:
-            return "WARN";
-        case VELLUM_LOG_ERROR:
-            return "ERROR";
+    case VELLUM_LOG_DEBUG:
+        return "DEBUG";
+    case VELLUM_LOG_INFO:
+        return "INFO";
+    case VELLUM_LOG_WARN:
+        return "WARN";
+    case VELLUM_LOG_ERROR:
+        return "ERROR";
     }
     return "?";
 }
@@ -73,14 +73,8 @@ void vellum_log(VellumLogLevel level, const char *subsystem, const char *fmt, ..
     (void)vsnprintf(message, sizeof(message), fmt, args);
     va_end(args);
 
-    (void)fprintf(stderr,
-                  "%02u:%02u.%03u [%-5s] [%s] %s\n",
-                  minutes,
-                  seconds,
-                  milliseconds,
-                  level_name(level),
-                  subsystem == NULL ? "app" : subsystem,
-                  message);
+    (void)fprintf(stderr, "%02u:%02u.%03u [%-5s] [%s] %s\n", minutes, seconds, milliseconds,
+                  level_name(level), subsystem == NULL ? "app" : subsystem, message);
     (void)fflush(stderr);
 
     if (g_log_mutex != NULL) {

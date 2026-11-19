@@ -65,9 +65,8 @@ void vellum_trace_end_frame(VellumTrace *trace)
         return;
     }
 
-    const double work = elapsed_ms(trace->frame_start_counter,
-                                   SDL_GetPerformanceCounter(),
-                                   trace->frequency);
+    const double work =
+        elapsed_ms(trace->frame_start_counter, SDL_GetPerformanceCounter(), trace->frequency);
     trace->last_work_ms = work;
     trace->total_work_ms += work;
     if (work > trace->max_work_ms) {

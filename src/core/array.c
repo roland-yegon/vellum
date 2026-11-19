@@ -108,8 +108,7 @@ void vellum_array_remove_swap(VellumArray *array, size_t index)
 
     const size_t last = array->length - 1u;
     if (index != last) {
-        memcpy(array->data + index * array->element_size,
-               array->data + last * array->element_size,
+        memcpy(array->data + index * array->element_size, array->data + last * array->element_size,
                array->element_size);
     }
     array->length = last;

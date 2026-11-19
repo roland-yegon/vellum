@@ -44,8 +44,8 @@ bool test_arena(void)
         return false;
     }
 
-    if (vellum_arena_alloc(arena, 16u, 3u) != NULL ||
-        vellum_arena_alloc(arena, 0u, 8u) != NULL || vellum_arena_alloc(NULL, 8u, 8u) != NULL) {
+    if (vellum_arena_alloc(arena, 16u, 3u) != NULL || vellum_arena_alloc(arena, 0u, 8u) != NULL ||
+        vellum_arena_alloc(NULL, 8u, 8u) != NULL) {
         vellum_arena_destroy(arena);
         return false;
     }

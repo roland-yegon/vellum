@@ -74,6 +74,13 @@
             "output": {
                 "outputOnFailure": true
             }
+        },
+        {
+            "name": "bench",
+            "configurePreset": "bench",
+            "output": {
+                "outputOnFailure": true
+            }
         }
     ]
 }

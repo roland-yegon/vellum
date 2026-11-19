@@ -15,8 +15,7 @@ struct SDL_Window;
 typedef struct VellumRenderer VellumRenderer;
 
 VellumRenderer *vellum_renderer_create(struct SDL_Window *window, VellumErrorInfo *error);
-bool vellum_renderer_submit(VellumRenderer *renderer,
-                            const VellumDrawList *list,
+bool vellum_renderer_submit(VellumRenderer *renderer, const VellumDrawList *list,
                             VellumErrorInfo *error);
 const char *vellum_renderer_name(const VellumRenderer *renderer);
 uint32_t vellum_renderer_draw_calls(const VellumRenderer *renderer);

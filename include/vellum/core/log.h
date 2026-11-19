@@ -24,14 +24,10 @@ bool vellum_log_enabled(VellumLogLevel level);
 void vellum_log(VellumLogLevel level, const char *subsystem, const char *fmt, ...)
     VELLUM_PRINTF_ATTR(3, 4);
 
-#define VELLUM_LOG_DEBUG(subsystem, ...) \
-    vellum_log(VELLUM_LOG_DEBUG, (subsystem), __VA_ARGS__)
-#define VELLUM_LOG_INFO(subsystem, ...) \
-    vellum_log(VELLUM_LOG_INFO, (subsystem), __VA_ARGS__)
-#define VELLUM_LOG_WARN(subsystem, ...) \
-    vellum_log(VELLUM_LOG_WARN, (subsystem), __VA_ARGS__)
-#define VELLUM_LOG_ERROR(subsystem, ...) \
-    vellum_log(VELLUM_LOG_ERROR, (subsystem), __VA_ARGS__)
+#define VELLUM_LOG_DEBUG(subsystem, ...) vellum_log(VELLUM_LOG_DEBUG, (subsystem), __VA_ARGS__)
+#define VELLUM_LOG_INFO(subsystem, ...) vellum_log(VELLUM_LOG_INFO, (subsystem), __VA_ARGS__)
+#define VELLUM_LOG_WARN(subsystem, ...) vellum_log(VELLUM_LOG_WARN, (subsystem), __VA_ARGS__)
+#define VELLUM_LOG_ERROR(subsystem, ...) vellum_log(VELLUM_LOG_ERROR, (subsystem), __VA_ARGS__)
 
 #ifdef __cplusplus
 }

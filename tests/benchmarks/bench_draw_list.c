@@ -64,9 +64,7 @@ bool bench_draw_list(void)
     printf("  quads:            %u / frame\n", BENCH_QUADS);
     printf("  iterations:       %u\n", BENCH_ITERATIONS);
     printf("  synthetic scene:  1920x1080 viewport, 8x16 glyph cells\n");
-    printf("  min / mean / max: %.3f / %.3f / %.3f ms\n",
-           minimum,
-           total / (double)BENCH_ITERATIONS,
+    printf("  min / mean / max: %.3f / %.3f / %.3f ms\n", minimum, total / (double)BENCH_ITERATIONS,
            maximum);
     printf("  quads per second: %.2f M\n",
            (double)BENCH_QUADS * 1000.0 / (total / (double)BENCH_ITERATIONS) / 1000000.0);

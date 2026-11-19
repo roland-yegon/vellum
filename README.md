@@ -19,6 +19,35 @@ the rendering benchmark). Each preset writes to its own directory under `build/`
 
 The debug preset enables AddressSanitizer and UBSan and treats warnings as errors.
 
+## Run
+
+```sh
+./build/debug/vellum
+```
+
+The window closes with `Esc`, the window manager's close button, or `SIGINT`/`SIGTERM`.
+Startup logs the linked SDL version, the renderer SDL selected, the preferences path,
+and frame timing for the first rendered frame.
+
+Tests and benchmarks:
+
+```sh
+ctest --preset debug --output-on-failure
+./build/bench/vellum_bench_draw_list
+```
+
+The current benchmark measures construction of a 200,000-quad draw list. It is a
+**skeleton**, not the full 200,000-glyph rendering benchmark specified in
+[ADR-004](docs/architecture/ADR-004-rendering-sdl3-first-gpu-conditional.md); no
+performance conclusion should be drawn from it yet.
+
+## Current state
+
+Phase 1 (Foundation) is implemented: C17/CMake/Ninja build, core utilities, SDL3
+window and event loop, draw list plus a batched SDL Render backend, unit tests,
+integration tests, and the benchmark skeleton. See
+[`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence.
+
 ## Architecture
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — module boundaries and design.

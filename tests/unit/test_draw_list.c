@@ -55,8 +55,7 @@ bool test_draw_list(void)
     bool enabled = false;
     float x = 0.0f;
     vellum_draw_list_set_scissor(list, true, 10.0f, 20.0f, 30.0f, 40.0f);
-    if (!vellum_draw_list_scissor(list, &enabled, &x, NULL, NULL, NULL) || !enabled ||
-        x != 10.0f) {
+    if (!vellum_draw_list_scissor(list, &enabled, &x, NULL, NULL, NULL) || !enabled || x != 10.0f) {
         vellum_draw_list_destroy(list);
         return false;
     }

@@ -17,10 +17,8 @@ struct VellumRenderer {
 static bool ensure_capacity(VellumRenderer *backend, size_t quads, VellumErrorInfo *error)
 {
     if (quads > (size_t)INT_MAX / 4u) {
-        vellum_error_set(error,
-                         VELLUM_ERR_CAPACITY,
-                         "draw list exceeds SDL vertex index range (%zu quads)",
-                         quads);
+        vellum_error_set(error, VELLUM_ERR_CAPACITY,
+                         "draw list exceeds SDL vertex index range (%zu quads)", quads);
         return false;
     }
 
@@ -73,12 +71,7 @@ static SDL_FColor to_sdl_color(VellumColor color)
     return converted;
 }
 
-static void append_vertex(SDL_Vertex *vertex,
-                          float x,
-                          float y,
-                          float u,
-                          float v,
-                          VellumColor color)
+static void append_vertex(SDL_Vertex *vertex, float x, float y, float u, float v, VellumColor color)
 {
     vertex->position.x = x;
     vertex->position.y = y;
@@ -87,16 +80,8 @@ static void append_vertex(SDL_Vertex *vertex,
     vertex->color = to_sdl_color(color);
 }
 
-static void append_quad(SDL_Vertex *vertices,
-                        float x,
-                        float y,
-                        float width,
-                        float height,
-                        float u0,
-                        float v0,
-                        float u1,
-                        float v1,
-                        VellumColor color)
+static void append_quad(SDL_Vertex *vertices, float x, float y, float width, float height, float u0,
+                        float v0, float u1, float v1, VellumColor color)
 {
     const float right = x + width;
     const float bottom = y + height;
@@ -138,11 +123,8 @@ VellumRenderer *vellum_renderer_create(struct SDL_Window *window, VellumErrorInf
     }
 
     const Uint32 white_pixel = 0xFFFFFFFFu;
-    backend->white = SDL_CreateTexture(backend->renderer,
-                                       SDL_PIXELFORMAT_RGBA8888,
-                                       SDL_TEXTUREACCESS_STATIC,
-                                       1,
-                                       1);
+    backend->white = SDL_CreateTexture(backend->renderer, SDL_PIXELFORMAT_RGBA8888,
+                                       SDL_TEXTUREACCESS_STATIC, 1, 1);
     if (backend->white == NULL) {
         vellum_error_set_sdl(error, VELLUM_ERR_PLATFORM, "SDL_CreateTexture");
         SDL_DestroyRenderer(backend->renderer);
@@ -151,8 +133,7 @@ VellumRenderer *vellum_renderer_create(struct SDL_Window *window, VellumErrorInf
     }
     if (!SDL_UpdateTexture(backend->white, NULL, &white_pixel, 4) ||
         !SDL_SetTextureBlendMode(backend->white, SDL_BLENDMODE_BLEND) ||
-        !SDL_SetRenderTextureAddressMode(backend->renderer,
-                                         SDL_TEXTURE_ADDRESS_CLAMP,
+        !SDL_SetRenderTextureAddressMode(backend->renderer, SDL_TEXTURE_ADDRESS_CLAMP,
                                          SDL_TEXTURE_ADDRESS_CLAMP)) {
         vellum_error_set_sdl(error, VELLUM_ERR_PLATFORM, "white texture setup");
         SDL_DestroyTexture(backend->white);
@@ -164,8 +145,7 @@ VellumRenderer *vellum_renderer_create(struct SDL_Window *window, VellumErrorInf
     return backend;
 }
 
-bool vellum_renderer_submit(VellumRenderer *backend,
-                            const VellumDrawList *list,
+bool vellum_renderer_submit(VellumRenderer *backend, const VellumDrawList *list,
                             VellumErrorInfo *error)
 {
     vellum_error_init(error);
@@ -181,10 +161,8 @@ bool vellum_renderer_submit(VellumRenderer *backend,
     const size_t total = rect_count + quad_count;
 
     const VellumColor clear = vellum_draw_list_clear_color(list);
-    if (!SDL_SetRenderDrawColor(backend->renderer,
-                                (Uint8)(clear.r * 255.0f),
-                                (Uint8)(clear.g * 255.0f),
-                                (Uint8)(clear.b * 255.0f),
+    if (!SDL_SetRenderDrawColor(backend->renderer, (Uint8)(clear.r * 255.0f),
+                                (Uint8)(clear.g * 255.0f), (Uint8)(clear.b * 255.0f),
                                 (Uint8)(clear.a * 255.0f)) ||
         !SDL_RenderClear(backend->renderer)) {
         vellum_error_set_sdl(error, VELLUM_ERR_PLATFORM, "SDL_RenderClear");
@@ -207,30 +185,14 @@ bool vellum_renderer_submit(VellumRenderer *backend,
     size_t vertex_index = 0u;
     for (size_t i = 0u; i < rect_count; ++i) {
         const VellumRect *rect = &rects[i];
-        append_quad(&vertices[vertex_index],
-                    rect->x,
-                    rect->y,
-                    rect->width,
-                    rect->height,
-                    0.5f,
-                    0.5f,
-                    0.5f,
-                    0.5f,
-                    rect->color);
+        append_quad(&vertices[vertex_index], rect->x, rect->y, rect->width, rect->height, 0.5f,
+                    0.5f, 0.5f, 0.5f, rect->color);
         vertex_index += 4u;
     }
     for (size_t i = 0u; i < quad_count; ++i) {
         const VellumTexturedQuad *quad = &quads[i];
-        append_quad(&vertices[vertex_index],
-                    quad->x,
-                    quad->y,
-                    quad->width,
-                    quad->height,
-                    quad->u0,
-                    quad->v0,
-                    quad->u1,
-                    quad->v1,
-                    quad->tint);
+        append_quad(&vertices[vertex_index], quad->x, quad->y, quad->width, quad->height, quad->u0,
+                    quad->v0, quad->u1, quad->v1, quad->tint);
         vertex_index += 4u;
     }
 
@@ -248,12 +210,9 @@ bool vellum_renderer_submit(VellumRenderer *backend,
 
     /* Rects and textured quads share one geometry call: rects sample the centre
      * of the white 1x1 texture and are coloured entirely per vertex. */
-    const bool geometry_ok = SDL_RenderGeometry(backend->renderer,
-                                                backend->white,
-                                                vertices,
-                                                (int)vertex_index,
-                                                backend->indices,
-                                                (int)(total * 6u));
+    const bool geometry_ok =
+        SDL_RenderGeometry(backend->renderer, backend->white, vertices, (int)vertex_index,
+                           backend->indices, (int)(total * 6u));
     if (scissor_enabled) {
         (void)SDL_SetRenderClipRect(backend->renderer, NULL);
     }

@@ -1,0 +1,275 @@
+#include "vellum/app.h"
+
+#include <SDL3/SDL.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+#include "vellum/core/log.h"
+#include "vellum/core/trace.h"
+#include "vellum/graphics/draw_list.h"
+#include "vellum/graphics/renderer.h"
+#include "vellum/platform/events.h"
+#include "vellum/platform/paths.h"
+#include "vellum/platform/signals.h"
+#include "vellum/platform/window.h"
+
+#define SAMPLE_GLYPHS 64u
+
+struct VellumApp {
+    VellumWindow *window;
+    VellumRenderer *renderer;
+    VellumDrawList *draw_list;
+    VellumTrace trace;
+    uint32_t app_event_base;
+    Uint64 last_log_tick;
+    int width;
+    int height;
+    bool quit;
+    bool dirty;
+};
+
+static void log_startup(void)
+{
+    const int version = SDL_GetVersion();
+    VELLUM_LOG_INFO("app", "SDL %d.%d.%d", SDL_VERSIONNUM_MAJOR(version),
+                    SDL_VERSIONNUM_MINOR(version), SDL_VERSIONNUM_MICRO(version));
+
+    char preferences[512];
+    VellumErrorInfo error;
+    if (vellum_paths_preferences(preferences, sizeof(preferences), &error)) {
+        VELLUM_LOG_INFO("app", "preferences: %s", preferences);
+    } else {
+        VELLUM_LOG_WARN("app", "preferences unavailable: %s", vellum_error_message(&error));
+    }
+}
+
+static bool post_startup_message(VellumApp *app, VellumErrorInfo *error)
+{
+    SDL_Event event;
+    SDL_zero(event);
+    event.type = app->app_event_base;
+    event.user.code = 1;
+    if (!SDL_PushEvent(&event)) {
+        vellum_error_set_sdl(error, VELLUM_ERR_PLATFORM, "SDL_PushEvent");
+        return false;
+    }
+    return true;
+}
+
+VellumApp *vellum_app_create(VellumErrorInfo *error)
+{
+    vellum_error_init(error);
+
+    VellumApp *app = malloc(sizeof(*app));
+    if (app == NULL) {
+        vellum_error_set(error, VELLUM_ERR_ALLOC_FAILED, "could not allocate application state");
+        return NULL;
+    }
+    app->window = NULL;
+    app->renderer = NULL;
+    app->draw_list = NULL;
+    app->app_event_base = 0u;
+    app->last_log_tick = 0u;
+    app->width = 0;
+    app->height = 0;
+    app->quit = false;
+    app->dirty = true;
+
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
+        vellum_error_set_sdl(error, VELLUM_ERR_PLATFORM, "SDL_Init");
+        free(app);
+        return NULL;
+    }
+
+    app->app_event_base = SDL_RegisterEvents(1);
+    if (app->app_event_base == UINT32_MAX) {
+        vellum_error_set(error, VELLUM_ERR_PLATFORM, "SDL_RegisterEvents failed");
+        goto fail;
+    }
+    if (!vellum_signals_install(error)) {
+        goto fail;
+    }
+    app->window = vellum_window_create(1280, 720, "Vellum", error);
+    if (app->window == NULL) {
+        goto fail;
+    }
+    app->renderer = vellum_renderer_create(vellum_window_handle(app->window), error);
+    if (app->renderer == NULL) {
+        goto fail;
+    }
+    app->draw_list = vellum_draw_list_create(64u, SAMPLE_GLYPHS);
+    if (app->draw_list == NULL) {
+        vellum_error_set(error, VELLUM_ERR_ALLOC_FAILED, "could not allocate draw list");
+        goto fail;
+    }
+    if (!post_startup_message(app, error)) {
+        goto fail;
+    }
+
+    vellum_trace_init(&app->trace);
+    vellum_window_get_size(app->window, &app->width, &app->height);
+    app->last_log_tick = SDL_GetTicks();
+    log_startup();
+    VELLUM_LOG_INFO("app", "renderer: %s", vellum_renderer_name(app->renderer));
+    VELLUM_LOG_INFO("app", "window: %dx%d", app->width, app->height);
+    return app;
+
+fail:
+    vellum_app_destroy(app);
+    return NULL;
+}
+
+static void handle_input(VellumApp *app, const VellumInput *input)
+{
+    switch (input->type) {
+    case VELLUM_INPUT_QUIT:
+        app->quit = true;
+        break;
+    case VELLUM_INPUT_KEY:
+        if (input->data.key.key == VELLUM_KEY_ESCAPE) {
+            VELLUM_LOG_INFO("input", "escape pressed");
+            app->quit = true;
+        }
+        break;
+    case VELLUM_INPUT_RESIZE:
+        app->width = input->data.resize.width;
+        app->height = input->data.resize.height;
+        app->dirty = true;
+        VELLUM_LOG_DEBUG("input", "resized to %dx%d", app->width, app->height);
+        break;
+    case VELLUM_INPUT_APP_MESSAGE:
+        VELLUM_LOG_INFO("input", "application message %u", input->data.message.type);
+        app->dirty = true;
+        break;
+    case VELLUM_INPUT_TEXT:
+    case VELLUM_INPUT_POINTER_MOTION:
+    case VELLUM_INPUT_POINTER_BUTTON:
+    case VELLUM_INPUT_WHEEL:
+    case VELLUM_INPUT_NONE:
+        break;
+    }
+}
+
+static void process_events(VellumApp *app)
+{
+    SDL_Event event;
+    if (SDL_PollEvent(&event)) {
+        do {
+            VellumInput input;
+            if (vellum_input_from_sdl(&event, app->app_event_base, &input)) {
+                handle_input(app, &input);
+            }
+        } while (!app->quit && SDL_PollEvent(&event));
+        return;
+    }
+
+    /* Bounded wait: no idle spin, and SIGINT/SIGTERM is noticed within 50 ms. */
+    if (SDL_WaitEventTimeout(&event, 50)) {
+        VellumInput input;
+        if (vellum_input_from_sdl(&event, app->app_event_base, &input)) {
+            handle_input(app, &input);
+        }
+    }
+}
+
+static void build_scene(VellumApp *app)
+{
+    VellumDrawList *list = app->draw_list;
+    vellum_draw_list_clear(list);
+    vellum_draw_list_set_clear_color(list, vellum_color(0.04f, 0.05f, 0.07f, 1.0f));
+    vellum_draw_list_rect(list, 0.0f, 0.0f, 180.0f, (float)app->height,
+                          vellum_color(0.08f, 0.09f, 0.12f, 1.0f));
+    vellum_draw_list_rect(list, 180.0f, 0.0f, (float)(app->width - 180), 24.0f,
+                          vellum_color(0.11f, 0.12f, 0.16f, 1.0f));
+    vellum_draw_list_rect(list, 180.0f, 80.0f, (float)(app->width - 180), 18.0f,
+                          vellum_color(0.10f, 0.12f, 0.18f, 1.0f));
+
+    for (uint32_t i = 0u; i < SAMPLE_GLYPHS; ++i) {
+        const VellumColor tint = i % 3u == 0u ? vellum_color(0.35f, 0.70f, 0.95f, 1.0f)
+                                              : vellum_color(0.85f, 0.87f, 0.92f, 1.0f);
+        vellum_draw_list_textured_quad(list, 196.0f + (float)i * 10.0f, 84.0f, 8.0f, 12.0f, 0.0f,
+                                       0.0f, 1.0f, 1.0f, tint);
+    }
+}
+
+static void log_frame_stats(VellumApp *app)
+{
+    const Uint64 now = SDL_GetTicks();
+    const uint64_t frames = vellum_trace_frame_count(&app->trace);
+    if (frames == 0u || (frames != 1u && now - app->last_log_tick < 2000u)) {
+        return;
+    }
+    if (frames == 1u) {
+        VELLUM_LOG_INFO("frame", "first frame work=%.3fms geometry_calls=%u",
+                        vellum_trace_last_work_ms(&app->trace),
+                        vellum_renderer_draw_calls(app->renderer));
+    } else {
+        VELLUM_LOG_INFO("frame",
+                        "frames=%llu avg_interval=%.3fms work=%.3fms max_interval=%.3fms "
+                        "geometry_calls=%u",
+                        (unsigned long long)frames, vellum_trace_average_ms(&app->trace),
+                        vellum_trace_average_work_ms(&app->trace), vellum_trace_max_ms(&app->trace),
+                        vellum_renderer_draw_calls(app->renderer));
+    }
+    app->last_log_tick = now;
+}
+
+int vellum_app_run(VellumApp *app)
+{
+    if (app == NULL) {
+        return 1;
+    }
+
+    while (!app->quit) {
+        int signal_number = 0;
+        if (vellum_signals_pending(&signal_number)) {
+            VELLUM_LOG_INFO("app", "received signal %d", signal_number);
+            app->quit = true;
+            break;
+        }
+
+        process_events(app);
+        if (app->quit) {
+            break;
+        }
+
+        if (!app->dirty || vellum_window_is_minimized(app->window)) {
+            continue;
+        }
+
+        vellum_trace_begin_frame(&app->trace);
+        build_scene(app);
+
+        VellumErrorInfo error;
+        if (!vellum_renderer_submit(app->renderer, app->draw_list, &error)) {
+            VELLUM_LOG_ERROR("render", "%s", vellum_error_message(&error));
+            vellum_trace_end_frame(&app->trace);
+            app->quit = true;
+            return 1;
+        }
+        vellum_trace_end_frame(&app->trace);
+        app->dirty = false;
+        log_frame_stats(app);
+    }
+    return 0;
+}
+
+void vellum_app_destroy(VellumApp *app)
+{
+    if (app == NULL) {
+        return;
+    }
+    if (app->draw_list != NULL) {
+        vellum_draw_list_destroy(app->draw_list);
+    }
+    if (app->renderer != NULL) {
+        vellum_renderer_destroy(app->renderer);
+    }
+    if (app->window != NULL) {
+        vellum_window_destroy(app->window);
+    }
+    vellum_signals_shutdown();
+    SDL_Quit();
+    free(app);
+}

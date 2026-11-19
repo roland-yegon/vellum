@@ -65,11 +65,7 @@ void vellum_draw_list_clear(VellumDrawList *list)
     list->scissor_enabled = false;
 }
 
-bool vellum_draw_list_rect(VellumDrawList *list,
-                           float x,
-                           float y,
-                           float width,
-                           float height,
+bool vellum_draw_list_rect(VellumDrawList *list, float x, float y, float width, float height,
                            VellumColor color)
 {
     if (list == NULL) {
@@ -87,15 +83,8 @@ bool vellum_draw_list_rect(VellumDrawList *list,
     return true;
 }
 
-bool vellum_draw_list_textured_quad(VellumDrawList *list,
-                                    float x,
-                                    float y,
-                                    float width,
-                                    float height,
-                                    float u0,
-                                    float v0,
-                                    float u1,
-                                    float v1,
+bool vellum_draw_list_textured_quad(VellumDrawList *list, float x, float y, float width,
+                                    float height, float u0, float v0, float u1, float v1,
                                     VellumColor tint)
 {
     if (list == NULL) {
@@ -129,11 +118,7 @@ VellumColor vellum_draw_list_clear_color(const VellumDrawList *list)
     return list == NULL ? vellum_color(0.0f, 0.0f, 0.0f, 1.0f) : list->clear_color;
 }
 
-void vellum_draw_list_set_scissor(VellumDrawList *list,
-                                  bool enabled,
-                                  float x,
-                                  float y,
-                                  float width,
+void vellum_draw_list_set_scissor(VellumDrawList *list, bool enabled, float x, float y, float width,
                                   float height)
 {
     if (list == NULL) {
@@ -146,12 +131,8 @@ void vellum_draw_list_set_scissor(VellumDrawList *list,
     list->scissor_height = height;
 }
 
-bool vellum_draw_list_scissor(const VellumDrawList *list,
-                              bool *enabled,
-                              float *x,
-                              float *y,
-                              float *width,
-                              float *height)
+bool vellum_draw_list_scissor(const VellumDrawList *list, bool *enabled, float *x, float *y,
+                              float *width, float *height)
 {
     if (list == NULL) {
         return false;

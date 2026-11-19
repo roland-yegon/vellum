@@ -64,8 +64,22 @@ add_library(vellum_graphics STATIC
     src/graphics/renderer_sdl.c)
 target_link_libraries(vellum_graphics PUBLIC vellum_core vellum_build_flags)
 
+add_library(vellum_platform STATIC
+    src/platform/events.c
+    src/platform/paths.c
+    src/platform/signals.c
+    src/platform/window.c)
+target_link_libraries(vellum_platform PUBLIC vellum_core vellum_build_flags)
+
+add_library(vellum_app STATIC src/app.c)
+target_link_libraries(vellum_app PUBLIC
+    vellum_platform
+    vellum_graphics
+    vellum_core
+    vellum_build_flags)
+
 add_executable(vellum src/main.c)
-target_link_libraries(vellum PRIVATE vellum_graphics vellum_core vellum_build_flags)
+target_link_libraries(vellum PRIVATE vellum_app vellum_build_flags)
 
 add_executable(vellum_unit_tests
     tests/unit/test_main.c
@@ -75,9 +89,14 @@ add_executable(vellum_unit_tests
     tests/unit/test_array.c
     tests/unit/test_queue.c
     tests/unit/test_trace.c
-    tests/unit/test_draw_list.c)
+    tests/unit/test_draw_list.c
+    tests/unit/test_events.c)
 target_include_directories(vellum_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(vellum_unit_tests PRIVATE vellum_graphics vellum_core vellum_build_flags)
+target_link_libraries(vellum_unit_tests PRIVATE
+    vellum_platform
+    vellum_graphics
+    vellum_core
+    vellum_build_flags)
 add_test(NAME unit COMMAND vellum_unit_tests)
 
 add_executable(vellum_bench_draw_list
@@ -85,3 +104,7 @@ add_executable(vellum_bench_draw_list
     tests/benchmarks/bench_draw_list.c)
 target_include_directories(vellum_bench_draw_list PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(vellum_bench_draw_list PRIVATE vellum_graphics vellum_core vellum_build_flags)
+
+add_executable(vellum_integration_tests tests/integration/test_app_events.c)
+target_link_libraries(vellum_integration_tests PRIVATE vellum_app vellum_build_flags)
+add_test(NAME app_events COMMAND vellum_integration_tests)

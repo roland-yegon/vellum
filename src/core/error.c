@@ -45,26 +45,26 @@ void vellum_error_set_sdl(VellumErrorInfo *info, VellumError code, const char *c
 const char *vellum_error_name(VellumError code)
 {
     switch (code) {
-        case VELLUM_OK:
-            return "OK";
-        case VELLUM_ERR_INVALID_ARGUMENT:
-            return "invalid argument";
-        case VELLUM_ERR_ALLOC_FAILED:
-            return "allocation failed";
-        case VELLUM_ERR_CAPACITY:
-            return "capacity exceeded";
-        case VELLUM_ERR_PLATFORM:
-            return "platform error";
-        case VELLUM_ERR_NOT_FOUND:
-            return "not found";
-        case VELLUM_ERR_IO:
-            return "I/O error";
-        case VELLUM_ERR_PARSE:
-            return "parse error";
-        case VELLUM_ERR_UNSUPPORTED:
-            return "unsupported";
-        case VELLUM_ERR_INTERNAL:
-            return "internal error";
+    case VELLUM_OK:
+        return "OK";
+    case VELLUM_ERR_INVALID_ARGUMENT:
+        return "invalid argument";
+    case VELLUM_ERR_ALLOC_FAILED:
+        return "allocation failed";
+    case VELLUM_ERR_CAPACITY:
+        return "capacity exceeded";
+    case VELLUM_ERR_PLATFORM:
+        return "platform error";
+    case VELLUM_ERR_NOT_FOUND:
+        return "not found";
+    case VELLUM_ERR_IO:
+        return "I/O error";
+    case VELLUM_ERR_PARSE:
+        return "parse error";
+    case VELLUM_ERR_UNSUPPORTED:
+        return "unsupported";
+    case VELLUM_ERR_INTERNAL:
+        return "internal error";
     }
     return "unknown error";
 }

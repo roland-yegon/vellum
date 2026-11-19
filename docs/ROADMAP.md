@@ -97,6 +97,25 @@ build instructions.
 **Depends on:** Phase 0. **Risks:** Wayland vs X11 renderer driver selection — handle by
 letting SDL choose and logging the result, not hard-coding a driver.
 
+### Phase 1 status — implemented and verified
+
+- `cmake --preset debug|release|bench && cmake --build --preset <name>` succeeds with
+  zero warnings; all presets enable warnings as errors. Debug adds ASan/UBSan.
+- `ctest --preset debug|release|bench` passes: unit tests for error/log, arena, array,
+  MPSC queue (including a three-producer stress test), trace, draw list, and SDL input
+  translation, plus an integration test that drives `Esc`, close-request, and resize
+  events through the real application loop using headless SDL drivers.
+- Runtime smoke test on this Wayland session: window created, `opengl` renderer selected
+  by SDL, one batched `SDL_RenderGeometry` call per frame, SDL version and frame work
+  time logged, and `SIGTERM` handled with exit status 0 and no ASan/UBSan reports.
+- The `SDL_GetError()` capture path is exercised by a synthetic-error negative test.
+- Remaining gap: the ADR-004 **full 200,000-glyph rendering benchmark** (fixed font,
+  theme, viewport, CPU/GPU/frame-latency breakdown) is not implemented. Only the
+  draw-list construction skeleton exists, and it is explicitly labelled as such.
+- Not automated here: physical window-manager close button and real mouse input,
+  because no input-injection tool is installed. Their SDL event translations are
+  covered by unit tests and the close-event integration case.
+
 ---
 
 ## Phase 2 — Native UI and text foundation (M2)

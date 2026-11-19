@@ -53,6 +53,11 @@ This is a **new project**, not an existing implementation.
 **Conclusion:** we are designing greenfield. The only work to preserve is the
 Makefile's debug/release/sanitizer setup and the trivial `main.c`.
 
+> **Phase 1 update:** the `Makefile` has been removed at the user's request;
+> CMake/Ninja presets are the only build path. `include/`, `tests/`, `src/core/`,
+> `src/platform/`, `src/graphics/`, and `src/app.c` now exist. See `ROADMAP.md` for
+> verified Phase 1 status. The historical file list above is retained as context.
+
 ## 4. Verified toolchain and dependencies
 
 Everything below was checked on this machine, not assumed.
