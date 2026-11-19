@@ -324,7 +324,8 @@ exotic structure.
 
 ### Phase 3 status — in progress
 
-The standalone buffer core is implemented and verified as the first Phase 3 increment:
+The standalone buffer core and line index are implemented and verified as the first
+Phase 3 increments:
 
 - `vellum_text` now exposes a byte-oriented piece-table API in
   `include/vellum/text/buffer.h`: create/destroy, length and piece count, `read`,
@@ -339,10 +340,26 @@ The standalone buffer core is implemented and verified as the first Phase 3 incr
   fuzz against a naive `memmove` model. Every operation checks length and tree
   validity; snapshots are compared byte-for-byte. The same suite was additionally
   run at 1,000,000 operations under ASan/UBSan as a stress check.
+- `vellum_text` also exposes a line index in `include/vellum/text/line_index.h`:
+  rebuild, incremental insert/delete notification, line-start lookup, offset→line
+  lookup, per-line terminator and content-end queries, dominant ending, and a
+  diagnostic validator.
+- `src/text/line_index.c` uses a flat sorted array of line-start byte offsets with
+  binary search. The two-level array from the design remains a large-file
+  optimisation, and the lazy I/O-worker build remains deferred until file loading
+  exists. LF, CRLF, and standalone CR are recognised; terminator style is derived
+  on demand from the buffer, so edits cannot leave stale ending metadata. Incremental
+  updates rescan only the affected span and shift the untouched tail.
+- Unit tests in `tests/unit/test_line_index.c` cover empty and unterminated buffers,
+  LF/CRLF/CR and mixed endings, offset→line boundaries, terminator and content-end
+  queries, dominant ending, inserts and deletes at the start/middle/end, CRLF boundary
+  transitions, and a deterministic 10,000-operation differential fuzz against a fresh
+  full rebuild after every edit. The same suite was additionally run at 1,000,000
+  operations under ASan/UBSan as a stress check.
 
-Remaining Phase 3 increments (line index, command/undo system, cursor/selection,
-editing operations, scrolling integration, and scale benchmarks) are not yet
-implemented; the phase exit criteria are therefore not yet met.
+Remaining Phase 3 increments (command/undo system, cursor/selection, editing
+operations, scrolling integration, and scale benchmarks) are not yet implemented;
+the phase exit criteria are therefore not yet met.
 
 ---
 
@@ -545,8 +562,9 @@ validation/graphemes, the FreeType atlas, HarfBuzz shaping, renderer textures an
 atlas upload, single-line text layout, the line cache, DPI/scale re-rasterization,
 the multilingual demo screen, the retained widget tree and panels, typed
 config/themes, user overrides with live reload, and the text-frame benchmark with
-recorded exit evidence (see above). Phase 3 has begun with the standalone buffer
-core: a byte-oriented piece table indexed by an AVL tree, OOM-safe split/insert/
-delete, and differential fuzz tests. The next action is the Phase 3 line index,
-then the command/undo system, keeping all earlier builds, tests, and benchmarks
+recorded exit evidence (see above). Phase 3 has advanced with the standalone buffer
+core and line index: a byte-oriented piece table indexed by an AVL tree, OOM-safe
+split/insert/delete, a flat-array line index with incremental updates, and
+differential fuzz tests. The next action is the Phase 3 command/undo system, then
+cursor/selection primitives, keeping all earlier builds, tests, and benchmarks
 green.

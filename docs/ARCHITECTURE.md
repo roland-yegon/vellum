@@ -303,9 +303,12 @@ Why this fits Vellum:
 
 Supporting structures:
 
-- **Line index:** two-level array of line-start byte offsets, built lazily in the I/O
-  worker by scanning newlines, with incremental updates near edits. CRLF and LF are
-  preserved as bytes; each line records its terminator style.
+- **Line index:** currently a flat sorted array of line-start byte offsets with binary
+  search, built synchronously in the standalone text engine. The two-level array and
+  lazy I/O-worker build remain large-file/file-loading optimisations. LF, CRLF, and
+  standalone CR are recognised; terminator style is derived on demand from the
+  buffer rather than stored per line, so edits cannot leave stale ending metadata.
+  Insert/delete notifications rescan the affected span and shift the untouched tail.
 - **Encoding:** UTF-8 throughout; ICU provides grapheme boundaries so cursor/selection
   operations are correct for Unicode. Encoding detection (UTF-8/BOM/legacy) happens at
   load and is recorded as document metadata.
@@ -318,7 +321,10 @@ currently copies the original bytes; the read-only `mmap` fast path is deferred 
 file loading. The piece tree is AVL-balanced with cached subtree byte lengths;
 split/insert/delete reserve nodes before mutation (so allocation failure leaves the
 buffer unchanged) and rebalance recursively even when a split detaches a whole
-subtree. The line index and command/undo layers above the buffer are not yet built.
+subtree. The line index is implemented in `src/text/line_index.c` with the public API
+in `include/vellum/text/line_index.h`, using a flat sorted array of line starts with
+binary search, on-demand terminator detection (LF/CRLF/CR), and incremental updates
+near edits. The command/undo layer above these structures is not yet built.
 
 ### 7.6 Editor model
 
@@ -504,5 +510,6 @@ caching. ICU, FreeType, HarfBuzz, renderer textures, atlas upload, single-line t
 layout, the line cache, the multilingual demo screen, the retained widget tree and
 panels, typed config/themes, live config reload, and the text-frame benchmark are
 implemented and verified; see `ROADMAP.md` and
-[`benchmarks/2026-11-19-text-frame.md`](benchmarks/2026-11-19-text-frame.md). The next
-increment is Phase 3 (the standalone editing buffer).
+[`benchmarks/2026-11-19-text-frame.md`](benchmarks/2026-11-19-text-frame.md). Phase 3
+is in progress with the standalone buffer core and line index implemented and
+verified. The next increment is the command/undo system.
