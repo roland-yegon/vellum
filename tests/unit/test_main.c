@@ -12,9 +12,9 @@ int main(void)
     vellum_log_set_level(VELLUM_LOG_ERROR);
 
     const TestFunction tests[] = {
-        test_error, test_log, test_arena, test_array, test_queue, test_trace
+        test_error, test_log, test_arena, test_array, test_queue, test_trace, test_draw_list
     };
-    const char *names[] = {"error", "log", "arena", "array", "queue", "trace"};
+    const char *names[] = {"error", "log", "arena", "array", "queue", "trace", "draw_list"};
     const size_t count = sizeof(tests) / sizeof(tests[0]);
 
     size_t passed = 0u;
