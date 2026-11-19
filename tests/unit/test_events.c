@@ -47,6 +47,12 @@ bool test_events(void)
     }
 
     SDL_zero(event);
+    event.type = SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED;
+    if (!vellum_input_from_sdl(&event, 0u, &input) || input.type != VELLUM_INPUT_SCALE_CHANGED) {
+        return false;
+    }
+
+    SDL_zero(event);
     event.type = SDL_EVENT_KEY_DOWN;
     event.key.key = SDLK_TAB;
     if (!vellum_input_from_sdl(&event, 0u, &input) || input.type != VELLUM_INPUT_KEY ||

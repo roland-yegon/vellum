@@ -41,6 +41,7 @@ struct VellumFontSystem {
     VellumGlyphCacheEntry *cache;
     size_t cache_capacity;
     size_t cache_count;
+    uint64_t rasterizations;
 };
 
 static bool fail_freetype(VellumErrorInfo *error, const char *operation, FT_Error result)
@@ -375,6 +376,7 @@ const VellumGlyph *vellum_font_system_glyph(VellumFontSystem *system, uint32_t f
     entry->occupied = true;
     entry->glyph = glyph;
     ++system->cache_count;
+    ++system->rasterizations;
     system->dirty = true;
     return &entry->glyph;
 }
@@ -438,6 +440,17 @@ void vellum_font_system_atlas_clear_dirty(VellumFontSystem *system)
     if (system != NULL) {
         system->dirty = false;
     }
+}
+
+bool vellum_font_system_stats(const VellumFontSystem *system, VellumFontStats *stats)
+{
+    if (system == NULL || stats == NULL) {
+        return false;
+    }
+    stats->rasterizations = system->rasterizations;
+    stats->cached_glyphs = system->cache_count;
+    stats->cache_capacity = system->cache_capacity;
+    return true;
 }
 
 FT_Face vellum_font_native_face(VellumFontSystem *system, uint32_t face_id)

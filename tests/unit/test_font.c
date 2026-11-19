@@ -99,6 +99,23 @@ bool test_font(void)
         return false;
     }
 
+    /* A new pixel size (as produced by a display-scale change) must rasterize a
+     * distinct glyph into the atlas instead of reusing the old cached geometry. */
+    VellumFontStats stats = {0u, 0u, 0u};
+    if (!vellum_font_system_stats(system, &stats) || stats.rasterizations == 0u ||
+        stats.cached_glyphs == 0u || stats.cache_capacity == 0u ||
+        vellum_font_system_stats(NULL, &stats) || vellum_font_system_stats(system, NULL)) {
+        vellum_font_system_destroy(system);
+        return false;
+    }
+    const uint64_t before_scale = stats.rasterizations;
+    const VellumGlyph *rescaled = vellum_font_system_glyph_for_char(system, mono, 'A', 48u, &error);
+    if (rescaled == NULL || rescaled == glyph || !vellum_font_system_stats(system, &stats) ||
+        stats.rasterizations != before_scale + 1u || !vellum_font_system_atlas_is_dirty(system)) {
+        vellum_font_system_destroy(system);
+        return false;
+    }
+
     const VellumGlyph *accented =
         vellum_font_system_glyph_for_char(system, mono, 0x00E9u, 24u, &error);
     const VellumGlyph *han = vellum_font_system_glyph_for_char(system, cjk, 0x4E2Du, 24u, &error);

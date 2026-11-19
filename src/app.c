@@ -19,6 +19,7 @@
 #include "vellum/core/trace.h"
 #include "vellum/graphics/draw_list.h"
 #include "vellum/graphics/font.h"
+#include "vellum/graphics/line_cache.h"
 #include "vellum/graphics/renderer.h"
 #include "vellum/graphics/shape.h"
 #include "vellum/graphics/text_layout.h"
@@ -30,6 +31,8 @@
 #include "vellum/ui/widget.h"
 
 #define ATLAS_PAGE_SIZE 512u
+#define VELLUM_MAX_PIXEL_SIZE 512u
+#define VELLUM_MAX_DISPLAY_SCALE 1000.0f
 
 #ifndef VELLUM_FONT_DIR
 #define VELLUM_FONT_DIR "."
@@ -47,6 +50,7 @@ struct VellumApp {
     VellumTheme theme;
     VellumFontSystem *fonts;
     VellumShaper *shaper;
+    VellumLineCache *line_cache;
     VellumTextureHandle atlas_texture;
     VellumUiState ui_state;
     VellumWidget *ui_root;
@@ -56,6 +60,9 @@ struct VellumApp {
     char theme_light_user_path[512];
     VellumTrace trace;
     uint32_t app_event_base;
+    uint64_t atlas_uploads;
+    uint32_t text_pixel_size;
+    float display_scale;
     Uint64 last_log_tick;
     int width;
     int height;
@@ -252,6 +259,8 @@ static void reload_config(VellumApp *app)
 {
     load_settings(app);
     load_theme(app, app->settings.theme);
+    /* A new font size changes the rasterization size even if the scale is fixed. */
+    vellum_app_set_display_scale(app, app->display_scale);
     if (app->ui_root != NULL) {
         vellum_ui_apply_settings(app->ui_root, &app->ui_state, app->settings.show_sidebar,
                                  app->settings.show_status_bar);
@@ -259,6 +268,73 @@ static void reload_config(VellumApp *app)
     VELLUM_LOG_INFO("config", "configuration reloaded (theme=%s, font size=%u)",
                     vellum_theme_name(&app->theme), app->settings.font_size);
     app->dirty = true;
+}
+
+uint32_t vellum_app_pixel_size_for_scale(uint32_t font_size, float scale)
+{
+    const float scaled = (float)font_size * scale + 0.5f;
+    /* Reject NaN and nonpositive results so layout never receives a bad size. */
+    if (!(scaled >= 1.0f)) {
+        return 1u;
+    }
+    if (scaled >= (float)VELLUM_MAX_PIXEL_SIZE) {
+        return VELLUM_MAX_PIXEL_SIZE;
+    }
+    return (uint32_t)scaled;
+}
+
+static float window_display_scale(const VellumApp *app)
+{
+    if (app->window != NULL) {
+        const float queried = SDL_GetWindowDisplayScale(vellum_window_handle(app->window));
+        if (queried > 0.0f && queried < VELLUM_MAX_DISPLAY_SCALE) {
+            return queried;
+        }
+    }
+    return 1.0f;
+}
+
+float vellum_app_display_scale(const VellumApp *app)
+{
+    return app == NULL ? 1.0f : app->display_scale;
+}
+
+uint32_t vellum_app_text_pixel_size(const VellumApp *app)
+{
+    return app == NULL ? 0u : app->text_pixel_size;
+}
+
+void vellum_app_set_display_scale(VellumApp *app, float scale)
+{
+    if (app == NULL) {
+        return;
+    }
+    if (!(scale > 0.0f) || scale >= VELLUM_MAX_DISPLAY_SCALE) {
+        /* Tests and settings can override the scale; nonpositive means "query SDL". */
+        scale = window_display_scale(app);
+    }
+    const uint32_t next = vellum_app_pixel_size_for_scale(app->settings.font_size, scale);
+    if (app->display_scale == scale && app->text_pixel_size == next) {
+        return;
+    }
+    const float previous_scale = app->display_scale;
+    const uint32_t previous_size = app->text_pixel_size;
+    app->display_scale = scale;
+    app->text_pixel_size = next;
+    app->dirty = true;
+    VELLUM_LOG_INFO("app", "display scale %.2f -> %.2f, text pixel size %u -> %u", previous_scale,
+                    scale, previous_size, next);
+}
+
+static void refresh_display_scale(VellumApp *app)
+{
+    vellum_app_set_display_scale(app, window_display_scale(app));
+}
+
+static bool prepare_line_cache(VellumApp *app, VellumErrorInfo *error)
+{
+    app->line_cache = vellum_line_cache_create(app->fonts, app->shaper, 256u, error);
+    return app->line_cache != NULL;
 }
 
 VellumApp *vellum_app_create(VellumErrorInfo *error)
@@ -277,6 +353,7 @@ VellumApp *vellum_app_create(VellumErrorInfo *error)
     app->theme = vellum_theme_dark();
     app->fonts = NULL;
     app->shaper = NULL;
+    app->line_cache = NULL;
     app->atlas_texture = VELLUM_TEXTURE_NONE;
     app->ui_state = vellum_ui_state_default();
     app->ui_root = NULL;
@@ -285,6 +362,9 @@ VellumApp *vellum_app_create(VellumErrorInfo *error)
     app->theme_dark_user_path[0] = '\0';
     app->theme_light_user_path[0] = '\0';
     app->app_event_base = 0u;
+    app->atlas_uploads = 0u;
+    app->text_pixel_size = 0u;
+    app->display_scale = 1.0f;
     app->last_log_tick = 0u;
     app->width = 0;
     app->height = 0;
@@ -323,6 +403,7 @@ VellumApp *vellum_app_create(VellumErrorInfo *error)
     }
     load_settings(app);
     load_theme(app, app->settings.theme);
+    refresh_display_scale(app);
     app->ui_root = vellum_ui_create(&app->ui_state, error);
     if (app->ui_root == NULL) {
         goto fail;
@@ -330,6 +411,9 @@ VellumApp *vellum_app_create(VellumErrorInfo *error)
     vellum_ui_apply_settings(app->ui_root, &app->ui_state, app->settings.show_sidebar,
                              app->settings.show_status_bar);
     if (!prepare_fonts(app, error)) {
+        goto fail;
+    }
+    if (!prepare_line_cache(app, error)) {
         goto fail;
     }
     if (!setup_watcher(app, error)) {
@@ -347,6 +431,8 @@ VellumApp *vellum_app_create(VellumErrorInfo *error)
     VELLUM_LOG_INFO("app", "theme: %s, font size: %u", vellum_theme_name(&app->theme),
                     app->settings.font_size);
     VELLUM_LOG_INFO("app", "atlas texture handle: %u", app->atlas_texture);
+    VELLUM_LOG_INFO("app", "display scale: %.2f, text pixel size: %u", app->display_scale,
+                    app->text_pixel_size);
     VELLUM_LOG_INFO("app", "window: %dx%d", app->width, app->height);
     return app;
 
@@ -363,7 +449,8 @@ static void app_ui_context(VellumApp *app, VellumUiContext *ctx)
     ctx->shaper = app->shaper;
     ctx->fonts = app->fonts;
     ctx->atlas_texture = app->atlas_texture;
-    ctx->font_size = app->settings.font_size;
+    /* Panel labels and the caret rasterize at the effective (scaled) size. */
+    ctx->font_size = app->text_pixel_size;
 }
 
 static void handle_input(VellumApp *app, const VellumInput *input)
@@ -391,6 +478,11 @@ static void handle_input(VellumApp *app, const VellumInput *input)
         app->height = input->data.resize.height;
         app->dirty = true;
         VELLUM_LOG_DEBUG("input", "resized to %dx%d", app->width, app->height);
+        break;
+    case VELLUM_INPUT_SCALE_CHANGED:
+        /* SDL sends no value with this event; query the window for the new scale. */
+        refresh_display_scale(app);
+        app->dirty = true;
         break;
     case VELLUM_INPUT_APP_MESSAGE:
         if (input->data.message.type == VELLUM_APPMSG_CONFIG_RELOAD) {
@@ -457,8 +549,11 @@ static bool layout_demo_line(VellumApp *app, const char *text, float x, float ba
     params.baseline_y = baseline_y;
     params.box_width = box_width;
     params.auto_direction = true; /* ICU first-strong detection drives RTL shaping. */
-    return vellum_text_layout_line(app->shaper, app->fonts, app->draw_list, &params, text,
-                                   strlen(text), font_size, NULL, error);
+    /* The cache key includes the effective pixel size, so a scale change
+     * re-rasterizes glyphs and re-lays out every line automatically. */
+    const uint32_t pixel_size = vellum_app_pixel_size_for_scale(font_size, app->display_scale);
+    return vellum_line_cache_layout(app->line_cache, app->draw_list, &params, text, strlen(text),
+                                    pixel_size, NULL, error);
 }
 
 static bool build_demo_text(VellumApp *app, VellumBounds area, VellumErrorInfo *error)
@@ -545,6 +640,12 @@ static bool build_scene(VellumApp *app, VellumErrorInfo *error)
             return false;
         }
         vellum_font_system_atlas_clear_dirty(app->fonts);
+        ++app->atlas_uploads;
+        VellumFontStats stats = {0u, 0u, 0u};
+        (void)vellum_font_system_stats(app->fonts, &stats);
+        VELLUM_LOG_INFO("render", "atlas upload #%llu (pixel size %u, rasterizations %llu)",
+                        (unsigned long long)app->atlas_uploads, app->text_pixel_size,
+                        (unsigned long long)stats.rasterizations);
     }
     return true;
 }
@@ -561,12 +662,15 @@ static void log_frame_stats(VellumApp *app)
                         vellum_trace_last_work_ms(&app->trace),
                         vellum_renderer_draw_calls(app->renderer));
     } else {
+        VellumLineCacheStats cache = {0u, 0u, 0u, 0u, 0u, 0u, 0u};
+        (void)vellum_line_cache_stats(app->line_cache, &cache);
         VELLUM_LOG_INFO("frame",
                         "frames=%llu avg_interval=%.3fms work=%.3fms max_interval=%.3fms "
-                        "geometry_calls=%u",
+                        "geometry_calls=%u line_hits=%llu line_misses=%llu",
                         (unsigned long long)frames, vellum_trace_average_ms(&app->trace),
                         vellum_trace_average_work_ms(&app->trace), vellum_trace_max_ms(&app->trace),
-                        vellum_renderer_draw_calls(app->renderer));
+                        vellum_renderer_draw_calls(app->renderer), (unsigned long long)cache.hits,
+                        (unsigned long long)cache.misses);
     }
     app->last_log_tick = now;
 }
@@ -632,6 +736,9 @@ void vellum_app_destroy(VellumApp *app)
     }
     if (app->renderer != NULL) {
         vellum_renderer_destroy(app->renderer);
+    }
+    if (app->line_cache != NULL) {
+        vellum_line_cache_destroy(app->line_cache);
     }
     if (app->shaper != NULL) {
         vellum_shaper_destroy(app->shaper);

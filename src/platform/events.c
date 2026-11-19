@@ -76,6 +76,10 @@ bool vellum_input_from_sdl(const SDL_Event *event, uint32_t app_event_base, Vell
         out->data.resize.width = event->window.data1;
         out->data.resize.height = event->window.data2;
         return true;
+    case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
+        /* SDL sends no scale value with this event; the app queries the window. */
+        out->type = VELLUM_INPUT_SCALE_CHANGED;
+        return true;
     case SDL_EVENT_KEY_DOWN:
         out->type = VELLUM_INPUT_KEY;
         out->data.key.key = translate_key(event->key.key);

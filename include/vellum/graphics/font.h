@@ -66,6 +66,17 @@ const uint8_t *vellum_font_system_atlas_pixels(const VellumFontSystem *system, u
 bool vellum_font_system_atlas_is_dirty(const VellumFontSystem *system);
 void vellum_font_system_atlas_clear_dirty(VellumFontSystem *system);
 
+/* Observability for cache and scale behaviour. `rasterizations` counts every glyph
+ * ever rendered into the atlas (including re-rasterizations at new pixel sizes);
+ * the other fields describe the current cache. Returns false only for NULL args. */
+typedef struct {
+    uint64_t rasterizations;
+    size_t cached_glyphs;
+    size_t cache_capacity;
+} VellumFontStats;
+
+bool vellum_font_system_stats(const VellumFontSystem *system, VellumFontStats *stats);
+
 #ifdef __cplusplus
 }
 #endif
