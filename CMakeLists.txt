@@ -79,7 +79,12 @@ add_library(vellum_core STATIC
 target_include_directories(vellum_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(vellum_core PUBLIC vellum_build_flags)
 
-add_library(vellum_text STATIC src/text/unicode.c src/text/buffer.c src/text/line_index.c)
+add_library(vellum_text STATIC
+    src/text/unicode.c
+    src/text/buffer.c
+    src/text/line_index.c
+    src/text/command.c
+)
 target_link_libraries(vellum_text PUBLIC vellum_core vellum_build_flags PkgConfig::ICU_UC)
 
 add_library(vellum_graphics STATIC
@@ -148,6 +153,7 @@ add_executable(vellum_unit_tests
     tests/unit/test_unicode.c
     tests/unit/test_buffer.c
     tests/unit/test_line_index.c
+    tests/unit/test_command.c
     tests/unit/test_font.c
     tests/unit/test_shape.c
     tests/unit/test_layout.c

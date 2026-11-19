@@ -324,8 +324,8 @@ exotic structure.
 
 ### Phase 3 status — in progress
 
-The standalone buffer core and line index are implemented and verified as the first
-Phase 3 increments:
+The standalone buffer core, line index, and command/undo stack are implemented and
+verified as the first Phase 3 increments:
 
 - `vellum_text` now exposes a byte-oriented piece-table API in
   `include/vellum/text/buffer.h`: create/destroy, length and piece count, `read`,
@@ -356,8 +356,24 @@ Phase 3 increments:
   transitions, and a deterministic 10,000-operation differential fuzz against a fresh
   full rebuild after every edit. The same suite was additionally run at 1,000,000
   operations under ASan/UBSan as a stress check.
+- `vellum_text` also exposes `include/vellum/text/command.h`, an inverse-operation
+  command stack over the buffer and optional line index. Inserts, deletes, and
+  replacements record both forward and inverse payloads before mutating the buffer;
+  undo/redo replay them in the correct order. Non-nested transactions group several
+  edits into one undo entry, and a byte budget discards the oldest undo entries while
+  keeping stack order intact. Typing coalescing is not implemented yet.
+- `src/text/command.c` applies each edit as delete-then-insert, notifies the line
+  index after each step, and attempts to restore deleted bytes if a later insert
+  allocation fails. Undo/redo and transaction abort apply inverse operations in
+  reverse order. A diagnostic validator checks the buffer, line index, edit payloads,
+  and memory accounting.
+- Unit tests in `tests/unit/test_command.c` cover insert/delete/replace undo and redo,
+  transaction commit/abort, bounded-memory eviction, and a 10,000-operation
+  differential fuzz against a naive string model with its own undo/redo history. The
+  same suite was additionally run at 200,000 operations under ASan/UBSan as a stress
+  check.
 
-Remaining Phase 3 increments (command/undo system, cursor/selection, editing
+Remaining Phase 3 increments (typing coalescing, cursor/selection, editing
 operations, scrolling integration, and scale benchmarks) are not yet implemented;
 the phase exit criteria are therefore not yet met.
 
@@ -563,8 +579,8 @@ atlas upload, single-line text layout, the line cache, DPI/scale re-rasterizatio
 the multilingual demo screen, the retained widget tree and panels, typed
 config/themes, user overrides with live reload, and the text-frame benchmark with
 recorded exit evidence (see above). Phase 3 has advanced with the standalone buffer
-core and line index: a byte-oriented piece table indexed by an AVL tree, OOM-safe
-split/insert/delete, a flat-array line index with incremental updates, and
-differential fuzz tests. The next action is the Phase 3 command/undo system, then
-cursor/selection primitives, keeping all earlier builds, tests, and benchmarks
-green.
+core, line index, and command stack: a byte-oriented piece table indexed by an AVL
+tree, OOM-safe split/insert/delete, a flat-array line index with incremental updates,
+inverse-operation undo/redo with transactions and bounded memory, and differential
+fuzz tests. The next action is typing coalescing, then cursor/selection primitives,
+keeping all earlier builds, tests, and benchmarks green.

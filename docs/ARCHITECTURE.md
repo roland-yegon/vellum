@@ -324,7 +324,11 @@ buffer unchanged) and rebalance recursively even when a split detaches a whole
 subtree. The line index is implemented in `src/text/line_index.c` with the public API
 in `include/vellum/text/line_index.h`, using a flat sorted array of line starts with
 binary search, on-demand terminator detection (LF/CRLF/CR), and incremental updates
-near edits. The command/undo layer above these structures is not yet built.
+near edits. The command/undo layer is implemented in `src/text/command.c` with the
+public API in `include/vellum/text/command.h`: inverse-operation insert/delete/replace
+records, undo/redo, non-nested transactions, and a byte-bounded undo history that
+discards oldest entries without disturbing order. Typing coalescing is deferred to a
+later increment.
 
 ### 7.6 Editor model
 
@@ -332,8 +336,9 @@ near edits. The command/undo layer above these structures is not yet built.
 - `View`: a rectangular region showing part of a document; owns scroll, wrap mode,
   cursor(s), selection(s), and local options (whitespace, minimap). Multiple views may
   share one document; this is how split views work.
-- `EditorCommand`: the only way to mutate a document. Commands are undoable and are
-  the seam where macros, tests, and future multi-cursor logic plug in.
+- `EditorCommand`: the only way to mutate a document. The standalone seam is
+  `VellumCommandStack` in `vellum/text/command.h`; commands are undoable and are
+  where macros, tests, and future multi-cursor logic plug in.
 - Tab management is a UI concern over a list of open documents/views; closing a tab
   asks services to cancel in-flight work for that document.
 
@@ -511,5 +516,6 @@ layout, the line cache, the multilingual demo screen, the retained widget tree a
 panels, typed config/themes, live config reload, and the text-frame benchmark are
 implemented and verified; see `ROADMAP.md` and
 [`benchmarks/2026-11-19-text-frame.md`](benchmarks/2026-11-19-text-frame.md). Phase 3
-is in progress with the standalone buffer core and line index implemented and
-verified. The next increment is the command/undo system.
+is in progress with the standalone buffer core, line index, and command stack
+implemented and verified. The next increment is typing coalescing, followed by
+cursor/selection primitives.
