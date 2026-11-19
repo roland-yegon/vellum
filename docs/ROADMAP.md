@@ -65,7 +65,8 @@ writing substantial code.
 shuts down cleanly, built with CMake/Ninja/Clang.
 
 **Scope**
-- Add `CMakeLists.txt` with presets (`debug`, `release`, `bench`); keep a `make` wrapper.
+- Add `CMakeLists.txt` with presets (`debug`, `release`, `bench`). The `Makefile` is
+  removed; CMake/Ninja is the only supported build path.
 - Create the directory skeleton from `ARCHITECTURE.md` §6 with placeholder libraries.
 - Migrate compiler from GCC/C23 to Clang/C17; fix warning flags
   (`-Wall -Wextra -Wpedantic -Wconversion -Wshadow`, warnings as errors in CI).
