@@ -15,6 +15,7 @@ bool test_trace(void);
 bool test_draw_list(void);
 bool test_events(void);
 bool test_unicode(void);
+bool test_buffer(void);
 bool test_font(void);
 bool test_shape(void);
 bool test_layout(void);

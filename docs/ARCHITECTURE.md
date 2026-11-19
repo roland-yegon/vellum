@@ -312,6 +312,14 @@ Supporting structures:
 - **Ownership:** the buffer owns its mmap and appended chunks; views hold offsets, not
   pointers into buffer memory.
 
+**Implementation status (Phase 3, in progress):** the buffer core is implemented in
+`src/text/buffer.c` with the public API in `include/vellum/text/buffer.h`. Store 0
+currently copies the original bytes; the read-only `mmap` fast path is deferred to
+file loading. The piece tree is AVL-balanced with cached subtree byte lengths;
+split/insert/delete reserve nodes before mutation (so allocation failure leaves the
+buffer unchanged) and rebalance recursively even when a split detaches a whole
+subtree. The line index and command/undo layers above the buffer are not yet built.
+
 ### 7.6 Editor model
 
 - `Document`: buffer + path + encoding + line-ending metadata + undo stack + dirty flag.

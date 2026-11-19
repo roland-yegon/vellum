@@ -2,7 +2,7 @@
 
 > **Status:** Approved baseline. Companion to `docs/ARCHITECTURE.md`. Written
 > 2026-11-19 after inspecting the repository and verifying the installed toolchain;
-> Phase 1 is complete and Phase 2 is in progress.
+> Phase 1 and Phase 2 are complete; Phase 3 is in progress.
 >
 > This is a plan of *testable increments*, not a wish list. A phase is complete only
 > when its exit criteria pass. If a phase cannot meet its exit criteria, we stop and
@@ -322,6 +322,28 @@ All Phase 2 exit criteria are met:
 balancing bugs — prefer a well-known AVL implementation with heavy unit tests over an
 exotic structure.
 
+### Phase 3 status — in progress
+
+The standalone buffer core is implemented and verified as the first Phase 3 increment:
+
+- `vellum_text` now exposes a byte-oriented piece-table API in
+  `include/vellum/text/buffer.h`: create/destroy, length and piece count, `read`,
+  `insert`, `delete`, `snapshot`, and a diagnostic `validate`.
+- `src/text/buffer.c` implements an AVL-indexed piece tree with cached subtree byte
+  lengths, append-only insertion storage, OOM-safe node reservation before mutation,
+  split/join primitives that restore the AVL invariant even for large subtree-height
+  differences, and recursive validation of balance and piece ranges.
+- Unit tests in `tests/unit/test_buffer.c` cover empty/invalid arguments, boundary
+  reads, binary and UTF-8 byte offsets, 3,000 concentrated edits while checking AVL
+  balance after every operation, and a deterministic 10,000-operation differential
+  fuzz against a naive `memmove` model. Every operation checks length and tree
+  validity; snapshots are compared byte-for-byte. The same suite was additionally
+  run at 1,000,000 operations under ASan/UBSan as a stress check.
+
+Remaining Phase 3 increments (line index, command/undo system, cursor/selection,
+editing operations, scrolling integration, and scale benchmarks) are not yet
+implemented; the phase exit criteria are therefore not yet met.
+
 ---
 
 ## Phase 4 — Editor experience (M4)
@@ -523,6 +545,8 @@ validation/graphemes, the FreeType atlas, HarfBuzz shaping, renderer textures an
 atlas upload, single-line text layout, the line cache, DPI/scale re-rasterization,
 the multilingual demo screen, the retained widget tree and panels, typed
 config/themes, user overrides with live reload, and the text-frame benchmark with
-recorded exit evidence (see above). The next action is to start Phase 3: the
-standalone editing buffer (piece table, balanced tree, line index, commands/undo),
-keeping the Phase 1/2 build, tests, and benchmark green.
+recorded exit evidence (see above). Phase 3 has begun with the standalone buffer
+core: a byte-oriented piece table indexed by an AVL tree, OOM-safe split/insert/
+delete, and differential fuzz tests. The next action is the Phase 3 line index,
+then the command/undo system, keeping all earlier builds, tests, and benchmarks
+green.

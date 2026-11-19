@@ -88,6 +88,12 @@ scale 1.00 → 2.00, pixel size 14 → 28, atlas re-upload before the first fram
 The release text benchmark measures 1.12–2.22 ms mean per frame for 1,000 glyphs
 and documents the 200,000-glyph stress result and the no-GPU-change conclusion;
 per-frame arena usage is stable with one reset per frame.
+Phase 3 (Text engine) is in progress: the standalone buffer core is implemented as a
+byte-oriented piece table indexed by an AVL tree with cached subtree lengths,
+append-only insertion storage, OOM-safe split/insert/delete, and a diagnostic tree
+validator; unit tests include targeted cases and a 10,000-operation differential fuzz
+against a naive `memmove` model (also stress-run at 1,000,000 operations under
+ASan/UBSan). The line index, command/undo system, and cursor layer are not yet built.
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for phase status and exit evidence and
 [`docs/benchmarks/2026-11-19-text-frame.md`](docs/benchmarks/2026-11-19-text-frame.md)
 for the recorded benchmark data.
