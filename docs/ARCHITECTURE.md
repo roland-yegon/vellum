@@ -348,7 +348,15 @@ content extent from `line_count * line_height`, accepts a caller-supplied horizo
 content width, clamps scroll offsets to the view size, maps offsets to visible logical
 lines and byte ranges, and supports minimal scroll-to-line/offset. It stays free of SDL
 and layout dependencies, so the view-rect origin and draw-list scissor remain UI concerns;
-wrapped-line movement and scrollbar widgets are deferred. Multiple cursors are
+wrapped-line movement remains deferred. A headless scrollbar model in
+`src/text/scrollbar.c` (`include/vellum/text/scrollbar.h`) sits over that scroll state:
+`VellumScrollbar` holds a borrowed `VellumScroll`, an orientation, a screen-space track
+rectangle, and a minimum thumb length, while `vellum_scrollbar_geometry` derives track/thumb
+rectangles from the scroll's live offsets (no invalidation needed after edits). Hit testing
+classifies a point as thumb / before / after / outside, and drag-to-pointer plus paging map
+screen coordinates to clamped scroll offsets without changing the cross-axis offset. It stays
+free of SDL and draw-list types; rendering the bar and wiring input gestures remain UI
+concerns. Multiple cursors are
 implemented in `src/text/cursor_set.c` with the API in `include/vellum/text/cursor_set.h`:
 a `VellumCursorSet` owns one or more `VellumCursor` instances over the shared buffer and
 line index, keeps a primary caret, and forwards movement, collapse, and insert/delete
@@ -561,7 +569,7 @@ indent/outdent), SDL-backed clipboard support (text-level copy/cut/paste plus a 
 wrapper), a layout-independent scrolling model over the line index, multiple cursors as a
 remapped caret set, configurable bracket completion (auto-close, type-over, selection
 wrapping, empty-pair backspace), drag-and-drop text movement (transactional move with
-no-op drop-inside), and scale benchmarks (100 MB open and 1M-line end typing meet the
-§10 targets) implemented and verified; see
+no-op drop-inside), a headless scrollbar geometry/hit-test model, and scale benchmarks
+(100 MB open and 1M-line end typing meet the §10 targets) implemented and verified; see
 [`benchmarks/2026-11-19-text-buffer-scale.md`](benchmarks/2026-11-19-text-buffer-scale.md).
 The next increment is scrollbar rendering and editor text clipping.

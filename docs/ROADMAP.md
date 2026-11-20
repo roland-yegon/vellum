@@ -451,11 +451,27 @@ layer are implemented and verified as the first Phase 3 increments:
   clamps scroll offsets to the view, maps scroll position to visible logical lines and
   byte ranges, and supports minimal scroll-to-line/offset. No SDL/FreeType dependency is
   added; the view rect's origin and draw-list clipping stay in the UI layer. Wrapped
-  (visual) line movement and scrollbar widgets remain deferred.
+  (visual) line movement remains deferred.
 - Unit tests in `tests/unit/test_scroll.c` cover extents and clamping in both axes,
   visible-line and byte-range mapping (including empty documents and unaligned views),
   scroll-to-line/offset, horizontal ensure-visible, re-clamping after an edit shrinks the
   line count, and an invariant sweep across view heights and scroll offsets.
+- A headless scrollbar model lives in `include/vellum/text/scrollbar.h` and
+  `src/text/scrollbar.c`, also inside the SDL-free `vellum_text` library. `VellumScrollbar`
+  borrows a `VellumScroll` and stores only an orientation, a screen-space track rectangle,
+  and a minimum thumb length. `vellum_scrollbar_geometry` derives track/thumb rectangles
+  from the scroll's live offsets (so edits and view changes need no invalidation), scaling
+  the thumb by `view / content` and clamping it to the configured minimum and the track
+  length. `vellum_scrollbar_hit_test` classifies a point as thumb, before/after the thumb,
+  or outside the track; `vellum_scrollbar_scroll_to_pointer` (centered or leading-edge)
+  and `vellum_scrollbar_page` map those interactions to clamped scroll offsets on one axis
+  while preserving the other. No SDL or draw-list dependency is added; drawing the bar and
+  wiring mouse gestures are UI concerns deferred with editor-state ownership.
+- Unit tests in `tests/unit/test_scrollbar.c` cover vertical and horizontal thumb geometry
+  at the start/middle/end (including clamped scroll), full-track thumbs when content fits,
+  minimum-thumb clamping, hit-test classification and track boundaries, drag-to-pointer and
+  paging with cross-axis preservation, an invariant sweep across orientations and offsets,
+  and NULL/validation handling (invalid orientation, negative track size, NaN minimum).
 - Multiple cursors are provided by `include/vellum/text/cursor_set.h` and
   `src/text/cursor_set.c` in the SDL-free `vellum_text` library. `VellumCursorSet`
   owns one or more `VellumCursor` instances over a shared buffer and line index,
@@ -477,7 +493,8 @@ layer are implemented and verified as the first Phase 3 increments:
   are in [`benchmarks/2026-11-19-text-buffer-scale.md`](benchmarks/2026-11-19-text-buffer-scale.md).
 
 Remaining Phase 3 increments (scrollbar rendering and editor text clipping) are not
-yet implemented; the phase exit criteria are therefore not yet met.
+yet implemented; the phase exit criteria are therefore not yet met. The SDL-free scrollbar
+geometry/hit-test model is delivered and tested, but no bar is drawn yet.
 
 ---
 
@@ -690,7 +707,8 @@ indent/outdent), SDL-backed clipboard support via a text-level copy/cut/paste AP
 platform clipboard wrapper, a layout-independent scrolling model over the line index,
 multiple cursors as a remapped caret set, configurable bracket completion (auto-close,
 type-over, selection wrapping, empty-pair backspace), drag-and-drop text movement
-(transactional move with no-op drop-inside), and scale benchmarks with recorded exit
-evidence (100 MB open and 1M-line end typing both pass), plus differential fuzz tests.
+(transactional move with no-op drop-inside), a headless scrollbar geometry/hit-test model,
+and scale benchmarks with recorded exit evidence (100 MB open and 1M-line end typing both
+pass), plus differential fuzz tests.
 The next action is scrollbar rendering and editor text clipping, keeping all earlier
 builds, tests, and benchmarks green.

@@ -118,7 +118,10 @@ copy/cut/paste and a headless-tested SDL3 platform wrapper around the system tex
 clipboard; app-level keybindings come with the editor UI. A layout-independent scrolling
 model over the line index clamps offsets to a view size, maps scroll position to visible
 logical lines and byte ranges, and supports scroll-to-line/offset, with tests covering
-clamping, visible ranges, edits, and an invariant sweep. Multiple cursors are a
+clamping, visible ranges, edits, and an invariant sweep. A headless scrollbar model adds
+track/thumb geometry derived from live scroll offsets, thumb/before/after hit testing, and
+drag-to-pointer and paging helpers on either axis; drawing the bar and wiring mouse gestures
+stay in the UI layer. Multiple cursors are a
 set of grapheme-snapped caret/selection states sharing one buffer and line index,
 with a primary caret, overlapping-add dedupe, per-caret movement, and insert/delete
 remapping for every caret; wiring edits at all carets into command transactions is

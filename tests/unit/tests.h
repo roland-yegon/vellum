@@ -23,6 +23,7 @@ bool test_cursor_set(void);
 bool test_edit(void);
 bool test_clipboard(void);
 bool test_scroll(void);
+bool test_scrollbar(void);
 bool test_font(void);
 bool test_shape(void);
 bool test_layout(void);

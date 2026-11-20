@@ -16,18 +16,18 @@ int main(void)
     vellum_log_init();
     vellum_log_set_level(VELLUM_LOG_ERROR);
 
-    const TestFunction tests[] = {test_error,      test_log,        test_arena,      test_array,
-                                  test_queue,      test_trace,      test_events,     test_draw_list,
-                                  test_unicode,    test_buffer,     test_line_index, test_command,
-                                  test_cursor,     test_cursor_set, test_edit,       test_clipboard,
-                                  test_scroll,     test_font,       test_shape,      test_layout,
-                                  test_line_cache, test_widget,     test_panels,     test_config,
-                                  test_theme,      test_paths};
+    const TestFunction tests[] = {test_error,   test_log,        test_arena,      test_array,
+                                  test_queue,   test_trace,      test_events,     test_draw_list,
+                                  test_unicode, test_buffer,     test_line_index, test_command,
+                                  test_cursor,  test_cursor_set, test_edit,       test_clipboard,
+                                  test_scroll,  test_scrollbar,  test_font,       test_shape,
+                                  test_layout,  test_line_cache, test_widget,     test_panels,
+                                  test_config,  test_theme,      test_paths};
     const char *names[] = {
-        "error",     "log",       "arena",  "array",      "queue",   "trace",  "events",
-        "draw_list", "unicode",   "buffer", "line_index", "command", "cursor", "cursor_set",
-        "edit",      "clipboard", "scroll", "font",       "shape",   "layout", "line_cache",
-        "widget",    "panels",    "config", "theme",      "paths"};
+        "error",      "log",       "arena",  "array",      "queue",   "trace",  "events",
+        "draw_list",  "unicode",   "buffer", "line_index", "command", "cursor", "cursor_set",
+        "edit",       "clipboard", "scroll", "scrollbar",  "font",    "shape",  "layout",
+        "line_cache", "widget",    "panels", "config",     "theme",   "paths"};
     const size_t count = sizeof(tests) / sizeof(tests[0]);
 
     size_t passed = 0u;
