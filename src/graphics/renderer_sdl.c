@@ -284,6 +284,36 @@ static bool draw_geometry(VellumRenderer *backend, SDL_Texture *texture, size_t 
     return true;
 }
 
+/* Flushes one contiguous run of geometry sharing a clip and texture. The clip
+ * is restored afterwards so the next batch starts from a known state. */
+static bool submit_batch(VellumRenderer *backend, const VellumDrawList *list, size_t start_vertex,
+                         size_t vertex_count, VellumTextureHandle texture, VellumClipId clip,
+                         VellumErrorInfo *error)
+{
+    bool enabled = false;
+    float x = 0.0f;
+    float y = 0.0f;
+    float width = 0.0f;
+    float height = 0.0f;
+    if (!vellum_draw_list_clip_rect(list, clip, &enabled, &x, &y, &width, &height)) {
+        vellum_error_set(error, VELLUM_ERR_INTERNAL, "draw list references unknown clip %u", clip);
+        return false;
+    }
+    if (enabled) {
+        const SDL_Rect rect = {(int)x, (int)y, (int)width, (int)height};
+        if (!SDL_SetRenderClipRect(backend->renderer, &rect)) {
+            vellum_error_set_sdl(error, VELLUM_ERR_PLATFORM, "SDL_SetRenderClipRect");
+            return false;
+        }
+    }
+    const bool ok =
+        draw_geometry(backend, draw_texture(backend, texture), start_vertex, vertex_count, error);
+    if (enabled) {
+        (void)SDL_SetRenderClipRect(backend->renderer, NULL);
+    }
+    return ok;
+}
+
 bool vellum_renderer_submit(VellumRenderer *backend, const VellumDrawList *list,
                             VellumErrorInfo *error)
 {
@@ -297,8 +327,10 @@ bool vellum_renderer_submit(VellumRenderer *backend, const VellumDrawList *list,
 
     size_t rect_count = 0u;
     size_t quad_count = 0u;
+    size_t command_count = 0u;
     const VellumRect *rects = vellum_draw_list_rects(list, &rect_count);
     const VellumTexturedQuad *quads = vellum_draw_list_quads(list, &quad_count);
+    const VellumDrawCommand *commands = vellum_draw_list_commands(list, &command_count);
     const size_t total = rect_count + quad_count;
 
     /* Reject stale or unknown handles before touching any SDL renderer state. */
@@ -331,54 +363,71 @@ bool vellum_renderer_submit(VellumRenderer *backend, const VellumDrawList *list,
         return false;
     }
 
+    /* Geometry is emitted in insertion order and split into runs sharing a
+     * clip and texture, so nested clips can be applied per run. Rects sample
+     * the centre of the white 1x1 texture and are coloured per vertex. */
     SDL_Vertex *vertices = backend->vertices;
     size_t vertex_index = 0u;
-    for (size_t i = 0u; i < rect_count; ++i) {
-        const VellumRect *rect = &rects[i];
-        append_quad(&vertices[vertex_index], rect->x, rect->y, rect->width, rect->height, 0.5f,
-                    0.5f, 0.5f, 0.5f, rect->color);
-        vertex_index += 4u;
-    }
-    for (size_t i = 0u; i < quad_count; ++i) {
-        const VellumTexturedQuad *quad = &quads[i];
-        append_quad(&vertices[vertex_index], quad->x, quad->y, quad->width, quad->height, quad->u0,
-                    quad->v0, quad->u1, quad->v1, quad->tint);
-        vertex_index += 4u;
-    }
+    size_t batch_start = 0u;
+    size_t batch_vertices = 0u;
+    VellumDrawKind batch_kind = VELLUM_DRAW_RECT;
+    VellumTextureHandle batch_texture = VELLUM_TEXTURE_NONE;
+    VellumClipId batch_clip = VELLUM_CLIP_NONE;
+    bool ok = true;
 
-    bool scissor_enabled = false;
-    float sx = 0.0f;
-    float sy = 0.0f;
-    float sw = 0.0f;
-    float sh = 0.0f;
-    (void)vellum_draw_list_scissor(list, &scissor_enabled, &sx, &sy, &sw, &sh);
-    SDL_Rect clip = {(int)sx, (int)sy, (int)sw, (int)sh};
-    if (scissor_enabled && !SDL_SetRenderClipRect(backend->renderer, &clip)) {
-        vellum_error_set_sdl(error, VELLUM_ERR_PLATFORM, "SDL_SetRenderClipRect");
-        return false;
-    }
-
-    /* Rects sample the centre of the white 1x1 texture and are coloured entirely
-     * per vertex. Quads are grouped into runs of the same texture so each run is
-     * one geometry call. */
-    bool ok = draw_geometry(backend, backend->white, 0u, rect_count * 4u, error);
-    if (ok && quad_count > 0u) {
-        size_t batch_start = 0u;
-        SDL_Texture *batch_texture = draw_texture(backend, quads[0].texture);
-        for (size_t i = 1u; i <= quad_count && ok; ++i) {
-            SDL_Texture *next = i < quad_count ? draw_texture(backend, quads[i].texture) : NULL;
-            if (next != batch_texture) {
-                const size_t start_vertex = (rect_count + batch_start) * 4u;
-                const size_t vertex_count = (i - batch_start) * 4u;
-                ok = draw_geometry(backend, batch_texture, start_vertex, vertex_count, error);
-                batch_start = i;
-                batch_texture = next;
+    for (size_t i = 0u; i < command_count && ok; ++i) {
+        const VellumDrawCommand *command = &commands[i];
+        VellumTextureHandle texture = VELLUM_TEXTURE_NONE;
+        VellumClipId clip = VELLUM_CLIP_NONE;
+        if (command->kind == VELLUM_DRAW_RECT) {
+            if (command->index >= rect_count) {
+                vellum_error_set(error, VELLUM_ERR_INTERNAL,
+                                 "draw command rect index out of range");
+                ok = false;
+                break;
             }
+            const VellumRect *rect = &rects[command->index];
+            clip = rect->clip;
+            append_quad(&vertices[vertex_index], rect->x, rect->y, rect->width, rect->height, 0.5f,
+                        0.5f, 0.5f, 0.5f, rect->color);
+        } else {
+            if (command->index >= quad_count) {
+                vellum_error_set(error, VELLUM_ERR_INTERNAL,
+                                 "draw command quad index out of range");
+                ok = false;
+                break;
+            }
+            const VellumTexturedQuad *quad = &quads[command->index];
+            texture = quad->texture;
+            clip = quad->clip;
+            append_quad(&vertices[vertex_index], quad->x, quad->y, quad->width, quad->height,
+                        quad->u0, quad->v0, quad->u1, quad->v1, quad->tint);
         }
+
+        if (batch_vertices == 0u) {
+            batch_start = vertex_index;
+            batch_kind = command->kind;
+            batch_texture = texture;
+            batch_clip = clip;
+        } else if (command->kind != batch_kind || texture != batch_texture || clip != batch_clip) {
+            ok = submit_batch(backend, list, batch_start, batch_vertices, batch_texture, batch_clip,
+                              error);
+            if (!ok) {
+                break;
+            }
+            batch_start = vertex_index;
+            batch_vertices = 0u;
+            batch_kind = command->kind;
+            batch_texture = texture;
+            batch_clip = clip;
+        }
+        batch_vertices += 4u;
+        vertex_index += 4u;
     }
 
-    if (scissor_enabled) {
-        (void)SDL_SetRenderClipRect(backend->renderer, NULL);
+    if (ok && batch_vertices > 0u) {
+        ok = submit_batch(backend, list, batch_start, batch_vertices, batch_texture, batch_clip,
+                          error);
     }
     if (!ok) {
         return false;

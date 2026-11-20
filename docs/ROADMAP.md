@@ -491,10 +491,26 @@ layer are implemented and verified as the first Phase 3 increments:
   < 1 ms p99 edit target because the flat line-index array shifts up to 8 MB on a middle
   line insert/delete. The two-level index remains deferred. Full numbers and verdicts
   are in [`benchmarks/2026-11-19-text-buffer-scale.md`](benchmarks/2026-11-19-text-buffer-scale.md).
+- Nested scissor support is implemented in `include/vellum/graphics/draw_list.h`,
+  `src/graphics/draw_list.c`, and `src/graphics/renderer_sdl.c`. A draw list now carries
+  an insertion-ordered `VellumDrawCommand` stream alongside its rect and quad arrays and a
+  clip table/stack. `vellum_draw_list_set_scissor` installs the root clip;
+  `vellum_draw_list_push_clip` / `vellum_draw_list_pop_clip` push intersected child clips
+  and restore the parent. Each draw record stores the active `VellumClipId`, and
+  `vellum_draw_list_clip_rect` reports its effective rect. The SDL backend batches
+  contiguous commands by `(kind, texture, clip)`, applies `SDL_SetRenderClipRect` per
+  clipped batch, and resets it afterwards, so editor text can be clipped to its viewport
+  without affecting neighbouring panels. `vellum_text` remains SDL-free.
+- Unit tests in `tests/unit/test_draw_list.c` cover the root/default clip, clip ids and
+  depth, nested intersection and disjoint clips, pop/clear restoration, negative-size
+  clamping, NULL handling, and command-stream ordering with per-record clip ids. The
+  renderer integration test confirms that two rects with different clips issue two
+  batches instead of being merged.
 
-Remaining Phase 3 increments (scrollbar rendering and editor text clipping) are not
-yet implemented; the phase exit criteria are therefore not yet met. The SDL-free scrollbar
-geometry/hit-test model is delivered and tested, but no bar is drawn yet.
+Remaining Phase 3 increments (scrollbar rendering, editor-state ownership in `src/app.c`,
+and wiring real clipped text) are not yet implemented; the phase exit criteria are
+therefore not yet met. The headless scrollbar model and the nested scissor primitive are
+delivered and tested, but no bar is drawn yet and the app still renders static demo text.
 
 ---
 

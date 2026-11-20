@@ -121,7 +121,10 @@ logical lines and byte ranges, and supports scroll-to-line/offset, with tests co
 clamping, visible ranges, edits, and an invariant sweep. A headless scrollbar model adds
 track/thumb geometry derived from live scroll offsets, thumb/before/after hit testing, and
 drag-to-pointer and paging helpers on either axis; drawing the bar and wiring mouse gestures
-stay in the UI layer. Multiple cursors are a
+stay in the UI layer. The draw list supports nested scissoring: an insertion-ordered command
+stream records a clip id per rect/quad, a clip stack intersects child rects, and the SDL
+backend batches by `(kind, texture, clip)` and applies each clip rect per batch, so editor
+text can be clipped to its viewport without clipping surrounding panels. Multiple cursors are a
 set of grapheme-snapped caret/selection states sharing one buffer and line index,
 with a primary caret, overlapping-add dedupe, per-caret movement, and insert/delete
 remapping for every caret; wiring edits at all carets into command transactions is

@@ -212,6 +212,18 @@ Evidence and rationale:
 - The internal `vellum_draw_list` interface is intentionally tiny: `begin`, `rect`,
   `textured_quad` (batched by texture handle), `line`, `scissor`, `end/submit`. A future
   GPU backend implements the same interface with one instanced draw; no UI code changes.
+- Scissoring is nested. `vellum_draw_list_set_scissor` installs the root rect (or disables
+  clipping); `vellum_draw_list_push_clip` / `vellum_draw_list_pop_clip` maintain a stack of
+  clips intersected at push time. Each rect and textured quad records the active
+  `VellumClipId`, and an insertion-ordered `VellumDrawCommand` stream preserves draw order
+  independently of the per-kind vertex arrays. The SDL backend splits that stream into
+  contiguous batches keyed by `(kind, texture, clip)`, calls `SDL_SetRenderClipRect` for
+  each clipped batch, and resets the clip afterwards. This lets editor text be clipped to
+  its viewport without clipping neighbouring panels; the headless `vellum_text` module is
+  unaffected. Clip values and command ordering are unit-tested; the renderer integration
+  test verifies that differing clips force separate batches. Pixel-level assertions are
+  deliberately avoided because SDL's software renderer and window readback are not
+  consistent enough across backends for stable colour comparisons.
 
 This satisfies "do not introduce an unnecessarily complicated rendering architecture"
 while preserving a credible high-performance path. The first release measurement
@@ -569,7 +581,8 @@ indent/outdent), SDL-backed clipboard support (text-level copy/cut/paste plus a 
 wrapper), a layout-independent scrolling model over the line index, multiple cursors as a
 remapped caret set, configurable bracket completion (auto-close, type-over, selection
 wrapping, empty-pair backspace), drag-and-drop text movement (transactional move with
-no-op drop-inside), a headless scrollbar geometry/hit-test model, and scale benchmarks
+no-op drop-inside), a headless scrollbar geometry/hit-test model, nested draw-list
+scissoring with per-command clip ids and per-batch SDL clip rects, and scale benchmarks
 (100 MB open and 1M-line end typing meet the §10 targets) implemented and verified; see
 [`benchmarks/2026-11-19-text-buffer-scale.md`](benchmarks/2026-11-19-text-buffer-scale.md).
-The next increment is scrollbar rendering and editor text clipping.
+The next increment is scrollbar rendering and wiring a real editor view into the app.

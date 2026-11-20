@@ -32,6 +32,31 @@ static bool submit_with(VellumRenderer *renderer, VellumTextureHandle texture,
     return ok;
 }
 
+/* Draws a full-window red rect inside a nested clip, then an unclipped green
+ * rect. The two commands carry different clip ids, so the renderer must issue
+ * two batches instead of merging them. */
+static bool submit_clipped(VellumRenderer *renderer, VellumErrorInfo *error)
+{
+    VellumDrawList *list = vellum_draw_list_create(4u, 4u);
+    if (list == NULL) {
+        return false;
+    }
+    vellum_draw_list_set_clear_color(list, vellum_color(0.0f, 0.0f, 0.0f, 1.0f));
+    const bool ok =
+        vellum_draw_list_push_clip(list, 2.0f, 2.0f, 4.0f, 4.0f) &&
+        vellum_draw_list_rect(list, 0.0f, 0.0f, 16.0f, 16.0f,
+                              vellum_color(1.0f, 0.0f, 0.0f, 1.0f)) &&
+        vellum_draw_list_pop_clip(list) &&
+        vellum_draw_list_rect(list, 12.0f, 12.0f, 4.0f, 4.0f, vellum_color(0.0f, 1.0f, 0.0f, 1.0f));
+    if (!ok) {
+        vellum_draw_list_destroy(list);
+        return false;
+    }
+    const bool submitted = vellum_renderer_submit(renderer, list, error);
+    vellum_draw_list_destroy(list);
+    return submitted;
+}
+
 int main(void)
 {
     (void)SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
@@ -90,6 +115,16 @@ int main(void)
     vellum_renderer_destroy_texture(renderer, handle);
     if (submit_with(renderer, handle, &error) || error.code != VELLUM_ERR_INVALID_ARGUMENT) {
         fprintf(stderr, "destroyed handle submit unexpectedly succeeded\n");
+        goto done;
+    }
+
+    /* Nested clips split the command stream into separate batches. The clip
+     * stack, effective rects, and command ordering are verified by the draw-list
+     * unit tests; here we confirm the renderer honours the split instead of
+     * merging commands that carry different clip ids. */
+    if (!submit_clipped(renderer, &error) || vellum_renderer_draw_calls(renderer) != 2u) {
+        fprintf(stderr, "clipped submit failed: %s (draw calls %u)\n", vellum_error_message(&error),
+                vellum_renderer_draw_calls(renderer));
         goto done;
     }
     ok = true;
